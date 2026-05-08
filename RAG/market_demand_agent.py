@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from openai import OpenAI
 from query_engine import query_jobs
 
