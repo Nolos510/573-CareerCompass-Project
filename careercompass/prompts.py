@@ -37,7 +37,7 @@ JSON_OUTPUT_GUIDES: dict[AgentName, str] = {
     """,
     "curriculum": """
     Return JSON with key "learning_roadmap": [
-      {"period": "Days 1-30", "goal": "...", "tasks": ["..."], "resource_relevance": "..."}
+      {"period": "Days 1-30", "goal": "...", "tasks": ["..."], "resource_relevance": "1-5"}
     ].
     """,
     "resume_optimization": """
@@ -70,11 +70,18 @@ def build_specialist_prompt(agent_name: AgentName, state: AgentState, profile: d
     resume_excerpt = state.get("resume_text", "").strip().replace("\n", " ")[:900]
     if not resume_excerpt:
         resume_excerpt = "No resume text supplied"
+    market_context = _profile_market_context(profile)
     retrieved_evidence = _format_retrieved_evidence(state)
+    interview_context = _interview_context(state)
 
     return dedent(
         f"""
         You are the CareerCompass {agent_name.replace('_', ' ').title()}.
+
+        Role:
+        You are an agent in a student career-planning workflow. Be practical,
+        evidence-aware, and careful with claims because the output may influence
+        resume edits, learning priorities, and interview preparation.
 
         Goal:
         {SPECIALIST_PROMPT_GOALS[agent_name]}
@@ -89,19 +96,37 @@ def build_specialist_prompt(agent_name: AgentName, state: AgentState, profile: d
         - Coursework: {coursework}
         - Resume excerpt: {resume_excerpt}
 
+        Profile market context:
+        {market_context}
+
         Retrieved market evidence:
         {retrieved_evidence}
+        {interview_context}
 
         Output contract:
         {JSON_OUTPUT_GUIDES[agent_name].strip()}
 
         Rules:
+        - Return only valid JSON matching the output contract.
         - Ground recommendations in the supplied resume, coursework, and market context.
         - Do not invent credentials, employers, certifications, or project outcomes.
+        - If evidence is missing, say what proof the student should create instead of pretending it exists.
+        - Do not include sensitive personal data beyond what was supplied in this prompt.
         - Prefer specific next steps over generic advice.
         - Preserve the student's voice when suggesting resume edits.
         """
     ).strip()
+
+
+def _profile_market_context(profile: dict[str, Any]) -> str:
+    skills = profile.get("skills", [])[:6]
+    if not skills:
+        return "- No profile market context supplied."
+
+    rows = []
+    for skill, demand, evidence in skills:
+        rows.append(f"- {skill}: {demand} demand. Evidence: {evidence}")
+    return "\n".join(rows)
 
 
 def _format_retrieved_evidence(state: AgentState) -> str:
@@ -117,3 +142,19 @@ def _format_retrieved_evidence(state: AgentState) -> str:
             f"skills: {', '.join(posting.get('skills', [])[:6])}"
         )
     return "\n".join(rows)
+
+
+def _interview_context(state: AgentState) -> str:
+    company = state.get("interview_company")
+    scenario = state.get("interview_scenario")
+    if not company and not scenario:
+        return ""
+
+    return dedent(
+        f"""
+
+        Interview context:
+        - Company: {company or "Not supplied"}
+        - Scenario: {scenario or "Not supplied"}
+        """
+    ).rstrip()

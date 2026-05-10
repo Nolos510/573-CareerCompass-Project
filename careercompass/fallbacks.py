@@ -30,7 +30,7 @@ def roadmap_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
             "period": period,
             "goal": goal,
             "tasks": tasks,
-            "resource_relevance": relevance,
+            "resource_relevance": str(relevance),
         }
         for period, goal, tasks, relevance in profile["roadmap"]
     ]
