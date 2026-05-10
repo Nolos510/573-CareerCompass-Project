@@ -1,6 +1,13 @@
 import unittest
 
-from careercompass.rag import derive_market_skills, retrieval_confidence, retrieve_job_postings
+from careercompass.rag import (
+    available_coursework_options,
+    available_target_roles,
+    derive_market_skills,
+    load_job_postings,
+    retrieval_confidence,
+    retrieve_job_postings,
+)
 
 
 class RagRetrievalTest(unittest.TestCase):
@@ -26,6 +33,18 @@ class RagRetrievalTest(unittest.TestCase):
 
     def test_retrieval_confidence_increases_with_evidence(self):
         self.assertLess(retrieval_confidence([]), retrieval_confidence([{"retrieval_score": 5.0}]))
+
+    def test_role_options_include_all_dataset_roles(self):
+        dataset_roles = {posting["role"] for posting in load_job_postings()}
+
+        self.assertTrue(dataset_roles.issubset(set(available_target_roles())))
+
+    def test_coursework_options_expand_from_dataset_skills(self):
+        options = set(available_coursework_options())
+
+        self.assertIn("Data Visualization", options)
+        self.assertIn("Agile Project Management", options)
+        self.assertIn("Requirements Engineering", options)
 
 
 if __name__ == "__main__":

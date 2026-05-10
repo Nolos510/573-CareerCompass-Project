@@ -12,6 +12,7 @@ from careercompass.agent_logic import (
     run_market_demand_logic,
     run_resume_optimization_logic,
 )
+from careercompass.fallbacks import skill_is_evidenced
 from careercompass.rag import retrieval_confidence, retrieve_job_postings
 from careercompass.state import (
     AgentHandoff,
@@ -281,6 +282,13 @@ def interview_simulation_node(state: AgentState) -> dict[str, Any]:
 def synthesis_node(state: AgentState) -> dict[str, Any]:
     profile = _profile_from_state(state)
     high_count = sum(1 for gap in state["gap_report"] if gap["Severity"] == "High")
+    keyword_coverage = _keyword_coverage(
+        state["market_skills"],
+        state["resume_text"],
+        state["coursework"],
+        profile,
+    )
+    match_percentage = _match_percentage(keyword_coverage, state["gap_report"])
     final_strategy_report = _synthesis_node(
         state,
         profile,
@@ -300,22 +308,22 @@ def synthesis_node(state: AgentState) -> dict[str, Any]:
         "target_role": state["target_role"],
         "target_location": state["target_location"],
         "role_label": profile["label"],
-        "match_percentage": profile["match_percentage"],
+        "match_percentage": match_percentage,
         "gap_counts": {"high": high_count},
-        "keyword_coverage": profile["keyword_coverage"],
-        "keyword_targets": _keyword_targets(profile),
+        "keyword_coverage": keyword_coverage,
+        "keyword_targets": _keyword_targets(profile, state["market_skills"]),
         "interview_readiness": profile["interview_readiness"],
         "market_skills": state["market_skills"],
         "retrieved_job_postings": state["retrieved_job_postings"],
         "gap_report": state["gap_report"],
-        "gap_deep_dives": profile["gap_deep_dives"],
+        "gap_deep_dives": _gap_deep_dives(profile, state["gap_report"]),
         "learning_roadmap": state["learning_roadmap"],
         "resume_recommendations": state["resume_recommendations"],
         "resume_templates": _resume_templates(profile),
         "interview_questions": state["interview_questions"],
         "interview_scenarios": profile["interview_scenarios"],
-        "next_actions": _next_actions(profile),
-        "resume_checklist": _resume_checklist(profile),
+        "next_actions": _next_actions(profile, state["gap_report"]),
+        "resume_checklist": _resume_checklist(profile, state["market_skills"]),
         "certification_recommendations": _certification_recommendations(profile),
         "portfolio_ideas": _portfolio_ideas(profile),
         "evaluation_metrics": _evaluation_metrics(profile),
@@ -885,7 +893,78 @@ def _resume_optimization_agent(inputs: dict, profile: dict) -> list[dict]:
     return run_resume_optimization_logic(inputs, profile)
 
 
-def _keyword_targets(profile: dict) -> list[dict]:
+def _keyword_coverage(
+    market_skills: list[dict],
+    resume_text: str,
+    coursework: list[str],
+    profile: dict,
+) -> int:
+    if not market_skills:
+        return profile["keyword_coverage"]
+
+    checked_skills = market_skills[:8]
+    covered = sum(
+        1
+        for skill in checked_skills
+        if skill_is_evidenced(skill["Skill"], resume_text, coursework)
+    )
+    return round((covered / max(len(checked_skills), 1)) * 100)
+
+
+def _match_percentage(keyword_coverage: int, gap_report: list[dict]) -> int:
+    if not gap_report:
+        return max(50, keyword_coverage)
+
+    high_gaps = sum(1 for gap in gap_report if gap["Severity"] == "High")
+    medium_gaps = sum(1 for gap in gap_report if gap["Severity"] == "Medium")
+    gap_penalty = high_gaps * 9 + medium_gaps * 5
+    score = 52 + round(keyword_coverage * 0.45) - gap_penalty
+    return max(25, min(92, score))
+
+
+def _gap_deep_dives(profile: dict, gap_report: list[dict]) -> dict[str, Any]:
+    deep_dives = dict(profile["gap_deep_dives"])
+    for gap in gap_report:
+        skill = gap["Skill"]
+        if skill in deep_dives:
+            continue
+        deep_dives[skill] = {
+            "why_it_matters": (
+                f"{skill} appears in the retrieved market evidence for this role target, "
+                "so CareerCompass treats it as a practical proof point for applications."
+            ),
+            "starter_business_cases": [
+                f"Use {skill} in a small portfolio case tied to the target role.",
+                f"Rework one class project to make {skill} visible.",
+                f"Create a one-page project summary that names {skill} and the business outcome.",
+            ],
+            "first_steps": [
+                gap["First Step"],
+                "Document the context, deliverable, and result in plain language.",
+                "Turn the work into one resume bullet and one interview story.",
+            ],
+            "search_terms": [
+                f"{skill} beginner portfolio project",
+                f"{skill} resume bullet examples",
+                f"{skill} {profile['label']} interview question",
+            ],
+            "resume_proof": gap["Resume Proof"],
+        }
+    return deep_dives
+
+
+def _keyword_targets(profile: dict, market_skills: list[dict] | None = None) -> list[dict]:
+    if market_skills:
+        return [
+            {
+                "Keyword": skill["Skill"],
+                "Priority": "High" if skill["Demand Signal"] in {"Very high", "High"} else "Medium",
+                "Where to use it": "Skills, project bullets, and portfolio evidence",
+                "Why": skill["Evidence"],
+            }
+            for skill in market_skills[:8]
+        ]
+
     if "Project Manager" in profile["label"] and "Business Analyst" not in profile["label"]:
         return [
             {"Keyword": "scope", "Priority": "High", "Where to use it": "Project bullets and summary", "Why": "Shows control of project boundaries."},
@@ -1017,19 +1096,31 @@ def _resume_templates(profile: dict) -> dict:
     }
 
 
-def _next_actions(profile: dict) -> list[dict]:
-    first_gap = profile["gaps"][0]
+def _next_actions(profile: dict, gap_report: list[dict] | None = None) -> list[dict]:
+    if gap_report:
+        first_gap = gap_report[0]
+        first_action = first_gap["Recommendation"]
+        first_skill = first_gap["Skill"]
+    else:
+        profile_gap = profile["gaps"][0]
+        first_action = profile_gap[3]
+        first_skill = profile_gap[0]
+
     return [
-        {"Priority": "This week", "Action": first_gap[3], "Why it matters": f"Addresses {first_gap[0]}, your highest-priority gap."},
+        {"Priority": "This week", "Action": first_action, "Why it matters": f"Addresses {first_skill}, your highest-priority gap."},
         {"Priority": "Next 30 days", "Action": profile["roadmap"][0][2][0], "Why it matters": "Turns coursework into visible proof."},
         {"Priority": "Before applying", "Action": "Add certification progress or portfolio evidence to the resume.", "Why it matters": "Recruiters need quick proof, not hidden capability."},
     ]
 
 
-def _resume_checklist(profile: dict) -> list[str]:
+def _resume_checklist(profile: dict, market_skills: list[dict] | None = None) -> list[str]:
+    tool_examples = ", ".join(skill["Skill"] for skill in (market_skills or [])[:5])
+    if not tool_examples:
+        tool_examples = "SQL, Tableau, Jira, Python, Excel, or SAP"
+
     return [
         "Have you added relevant certifications or in-progress certifications?",
-        "Have you named the tools you actually used, such as SQL, Tableau, Jira, Python, Excel, or SAP?",
+        f"Have you named the tools you actually used, such as {tool_examples}?",
         "Have you included a measurable result, business impact, or stakeholder outcome?",
         "Have you added one portfolio project link or short project summary?",
         f"Have you customized at least three bullets for {profile['label']} roles?",
@@ -1128,6 +1219,15 @@ def _synthesis_node(
     role = inputs["target_role"]
     location = inputs["target_location"]
     timeline = inputs["timeline_days"]
+    readiness = _match_percentage(
+        _keyword_coverage(
+            market_skills,
+            inputs.get("resume_text", ""),
+            inputs.get("coursework", []),
+            profile,
+        ),
+        gap_report,
+    )
     top_skills = ", ".join(skill["Skill"] for skill in market_skills[:4])
     gaps = "\n".join(
         f"{index}. {gap['Skill']} - {gap['Severity']} severity. {gap['Recommendation']}"
@@ -1144,7 +1244,7 @@ def _synthesis_node(
 
         Target: {role} in {location}
         Timeline: {timeline} days until target hire date
-        Estimated readiness: {profile['match_percentage']} percent match
+        Estimated readiness: {readiness} percent match
 
         Market Demand Summary
         The strongest demand signals for this target are {top_skills}. These should guide the student's resume, learning roadmap, and interview preparation.

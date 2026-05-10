@@ -1,6 +1,36 @@
 from __future__ import annotations
 
+import re
 from typing import Any
+
+
+SKILL_ALIASES = {
+    "Agile": ["agile", "scrum", "sprint"],
+    "Excel": ["excel", "spreadsheet", "spreadsheets"],
+    "Jira": ["jira", "atlassian"],
+    "KPIs": ["kpi", "kpis", "metric", "metrics"],
+    "Power BI": ["power bi", "powerbi"],
+    "Python": ["python"],
+    "SQL": ["sql", "database", "queries", "query"],
+    "Tableau": ["tableau"],
+    "stakeholder communication": ["stakeholder", "stakeholders", "presentation", "communication"],
+    "requirements gathering": ["requirements", "business requirements", "user stories"],
+    "risk management": ["risk", "risks", "mitigation"],
+    "project coordination": ["project coordination", "coordinated", "led a team", "team project"],
+    "milestones": ["milestone", "milestones", "timeline", "schedule"],
+    "documentation": ["documentation", "documenting", "documented"],
+    "data analysis": ["data analysis", "analytics", "analysis"],
+    "data storytelling": ["storytelling", "presenting findings", "recommendations"],
+    "process improvement": ["process improvement", "improvement"],
+    "process mapping": ["process mapping", "process map"],
+    "user acceptance testing": ["uat", "user acceptance", "testing"],
+    "business process": ["business process", "process"],
+    "experimentation": ["experimentation", "experiment", "a/b"],
+    "scope": ["scope", "scoping"],
+    "Scrum": ["scrum", "sprint"],
+    "timeline management": ["timeline", "schedule"],
+    "presentation": ["presentation", "presented", "presenting"],
+}
 
 
 def market_skill_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -10,7 +40,15 @@ def market_skill_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def gap_report_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
+def gap_report_fallback(
+    profile: dict[str, Any],
+    state: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    if state and state.get("market_skills"):
+        dynamic_report = _dynamic_gap_report(profile, state)
+        if dynamic_report:
+            return dynamic_report
+
     return [
         {
             "Skill": skill,
@@ -22,6 +60,80 @@ def gap_report_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
         }
         for skill, evidence, severity, recommendation in profile["gaps"]
     ]
+
+
+def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[dict[str, Any]]:
+    evidence_text = _student_evidence_text(state)
+    missing_rows = []
+    covered_rows = []
+
+    for market_skill in state.get("market_skills", [])[:8]:
+        skill = market_skill["Skill"]
+        evidenced = _skill_is_evidenced(skill, evidence_text)
+        demand = market_skill.get("Demand Signal", "Medium")
+
+        if evidenced:
+            row = {
+                "Skill": skill,
+                "Current Evidence": f"Found evidence of {skill} in the resume or coursework.",
+                "Severity": "Low",
+                "Recommendation": f"Keep {skill} visible and add a measurable result or project outcome.",
+                "First Step": f"Add one bullet that shows how {skill} supported a business or project decision.",
+                "Resume Proof": f"Name {skill}, the project context, and the outcome it supported.",
+            }
+            covered_rows.append(row)
+            continue
+
+        severity = "High" if demand in {"Very high", "High"} else "Medium"
+        row = {
+            "Skill": skill,
+            "Current Evidence": f"No clear {skill} evidence found in the supplied resume or coursework.",
+            "Severity": severity,
+            "Recommendation": f"Create or document a small project that proves {skill} for {state['target_role']} roles.",
+            "First Step": f"Complete a short {skill} exercise and connect it to one target-role business case.",
+            "Resume Proof": f"Add a resume bullet naming {skill}, the deliverable, and the recommendation or result.",
+        }
+        missing_rows.append(row)
+
+    rows = missing_rows + covered_rows
+    if rows:
+        return rows
+
+    return []
+
+
+def skill_is_evidenced(skill: str, resume_text: str, coursework: list[str]) -> bool:
+    return _skill_is_evidenced(skill, _normalize_text(f"{resume_text} {' '.join(coursework)}"))
+
+
+def _student_evidence_text(state: dict[str, Any]) -> str:
+    return _normalize_text(
+        " ".join(
+            [
+                state.get("resume_text", ""),
+                " ".join(state.get("coursework", [])),
+            ]
+        )
+    )
+
+
+def _skill_is_evidenced(skill: str, evidence_text: str) -> bool:
+    for term in _skill_terms(skill):
+        if re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", evidence_text):
+            return True
+    return False
+
+
+def _skill_terms(skill: str) -> list[str]:
+    terms = [skill.lower()]
+    terms.extend(SKILL_ALIASES.get(skill, []))
+    if "/" in skill or " or " in skill.lower():
+        terms.extend(re.split(r"\s*/\s*|\s+or\s+", skill.lower()))
+    return [_normalize_text(term) for term in terms if term.strip()]
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower()).strip()
 
 
 def roadmap_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:

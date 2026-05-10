@@ -127,6 +127,53 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_final_output(incomplete)
 
+    def test_existing_tableau_evidence_reduces_tableau_gap_priority(self):
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "resume_text": (
+                    self.inputs["resume_text"]
+                    + "\nBuilt a Tableau dashboard with KPIs and stakeholder recommendations."
+                ),
+                "coursework": [*self.inputs["coursework"], "Data Visualization"],
+            }
+        )
+
+        tableau_gap = next(
+            gap for gap in result["gap_report"] if gap["Skill"].lower() == "tableau"
+        )
+        self.assertEqual(tableau_gap["Severity"], "Low")
+        self.assertNotEqual(result["gap_report"][0]["Skill"], "Tableau")
+
+    def test_data_analyst_target_uses_retrieved_data_skills(self):
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": "Python coursework, statistics project, and SQL analysis portfolio.",
+                "coursework": ["Python Programming", "Statistics", "SQL for Data Analysis"],
+            }
+        )
+
+        skill_names = {skill["Skill"] for skill in result["market_skills"]}
+        self.assertIn("Python", skill_names)
+        self.assertIn("experimentation", skill_names)
+
+    def test_unknown_custom_role_still_returns_complete_output(self):
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Product Analyst",
+                "target_location": "Remote",
+                "coursework": ["Product Analytics", "SQL for Data Analysis"],
+            }
+        )
+
+        self.assertEqual(result["target_role"], "Product Analyst")
+        self.assertTrue(result["market_skills"])
+        self.assertTrue(result["gap_report"])
+        validate_final_output(result)
+
 
 if __name__ == "__main__":
     unittest.main()

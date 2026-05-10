@@ -68,7 +68,7 @@ def run_gap_analysis_logic(state: AgentState, profile: dict[str, Any]) -> list[S
         "gap_analysis",
         state,
         profile,
-        lambda: gap_report_fallback(profile),
+        lambda: gap_report_fallback(profile, state),
     )
 
 

@@ -18,6 +18,11 @@ from careercompass.agents import (
     run_career_analysis,
 )
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
+from careercompass.rag import (
+    available_coursework_options,
+    available_locations,
+    available_target_roles,
+)
 
 
 ACCENT_CSS = """
@@ -220,6 +225,12 @@ def initialize_state() -> None:
         "last_resume_upload": None,
         "resume_upload_notice": None,
         "resume_text_area": SAMPLE_RESUME,
+        "target_role_choice": "Business Analyst",
+        "custom_target_role": "",
+        "target_location_choice": "San Francisco Bay Area",
+        "custom_target_location": "",
+        "coursework_selection": SAMPLE_COURSEWORK,
+        "additional_coursework": "",
         "resume_draft": "",
         "selected_resume_template": "ATS chronological",
         "custom_resume_template": "",
@@ -351,12 +362,44 @@ def render_inputs() -> dict:
         )
 
     with right:
-        target_role = st.text_input(
+        role_options = available_target_roles() + ["Custom role"]
+        if st.session_state.target_role_choice not in role_options:
+            st.session_state.target_role_choice = role_options[0]
+
+        target_role_choice = st.selectbox(
             "Target role",
-            value="Business Analyst or Project Manager",
-            help="Try Business Analyst, Project Manager, Data Analyst, Product Manager, or a blended target.",
+            options=role_options,
+            key="target_role_choice",
+            help="Choose a role from the current job-posting dataset, or use Custom role for another target.",
         )
-        target_location = st.text_input("Target location", value="San Francisco Bay Area")
+        if target_role_choice == "Custom role":
+            target_role = st.text_input(
+                "Custom target role",
+                key="custom_target_role",
+                placeholder="Example: Product Analyst, Data Engineer, UX Researcher",
+            ).strip()
+        else:
+            target_role = target_role_choice
+
+        location_options = available_locations() + ["Custom location"]
+        if st.session_state.target_location_choice not in location_options:
+            st.session_state.target_location_choice = location_options[0]
+
+        target_location_choice = st.selectbox(
+            "Target location",
+            options=location_options,
+            key="target_location_choice",
+            help="Locations come from the current local job-posting dataset.",
+        )
+        if target_location_choice == "Custom location":
+            target_location = st.text_input(
+                "Custom target location",
+                key="custom_target_location",
+                placeholder="Example: Los Angeles, Remote, New York",
+            ).strip()
+        else:
+            target_location = target_location_choice
+
         timeline_days = st.slider(
             "Timeline (days until target hire date)",
             min_value=30,
@@ -364,27 +407,47 @@ def render_inputs() -> dict:
             value=90,
             step=30,
         )
+        coursework_options = available_coursework_options()
+        selected_defaults = [
+            option for option in st.session_state.coursework_selection if option in coursework_options
+        ]
+        if selected_defaults != st.session_state.coursework_selection:
+            st.session_state.coursework_selection = selected_defaults
+
         coursework = st.multiselect(
             "Relevant coursework",
-            options=[
-                "Database Systems",
-                "Business Analytics",
-                "Project Management",
-                "Systems Analysis and Design",
-                "Python Programming",
-                "Information Security",
-                "Operations Management",
-            ],
-            default=SAMPLE_COURSEWORK,
+            options=coursework_options,
+            key="coursework_selection",
+            help="Options are expanded from the skills represented in the local job-posting dataset.",
         )
+        additional_coursework = st.text_area(
+            "Additional coursework or training",
+            key="additional_coursework",
+            height=92,
+            placeholder="Add courses, certifications, bootcamps, or workshops separated by commas or new lines.",
+        )
+        coursework = merge_coursework(coursework, additional_coursework)
 
     return {
         "resume_text": resume_text,
-        "target_role": target_role,
-        "target_location": target_location,
+        "target_role": target_role or "Business Analyst",
+        "target_location": target_location or "San Francisco Bay Area",
         "timeline_days": timeline_days,
         "coursework": coursework,
     }
+
+
+def merge_coursework(selected: list[str], additional_text: str) -> list[str]:
+    additional = [
+        chunk.strip()
+        for chunk in additional_text.replace("\n", ",").split(",")
+        if chunk.strip()
+    ]
+    merged = []
+    for item in [*selected, *additional]:
+        if item not in merged:
+            merged.append(item)
+    return merged
 
 
 def render_progress() -> None:
