@@ -46,6 +46,9 @@ http://localhost:8503
 - [Data notes](docs/data_notes.md)
 - [Demo flow](docs/demo_flow.md)
 - [Video script](docs/demo_script.md)
+- [Evaluation plan](docs/evaluation.md)
+- [Ethics notes](docs/ethics.md)
+- [Deployment notes](docs/deployment.md)
 
 ## Next Integration Step
 

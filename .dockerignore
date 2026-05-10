@@ -1,0 +1,12 @@
+.git
+.venv
+.tmp
+.packages
+__pycache__
+*.pyc
+streamlit*.log
+DATA
+docs/screenshots/*.png
+docs/screenshots/*.jpg
+docs/screenshots/*.jpeg
+

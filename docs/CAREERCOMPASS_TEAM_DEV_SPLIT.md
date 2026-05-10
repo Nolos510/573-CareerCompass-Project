@@ -12,7 +12,7 @@ The goal is to keep the project moving without creating merge chaos.
 | Nhi | RAG / Data | `nhi-rag-data-*` | Started | Job postings, ChromaDB/vector search, retrieved evidence |
 | TM3 | Agent Logic | `tm3-agent-logic-*` | Started | OpenAI prompts, JSON outputs, fallback behavior |
 | TM4 | Frontend / Demo | `tm4-frontend-demo-*` | Started | Streamlit polish, screenshots, video flow |
-| TM5 | Evaluation / Deployment | `tm5-eval-deploy-*` | Unclaimed / available | Docker, metrics table, ethics, final report support |
+| TM5 | Evaluation / Deployment | `tm5-eval-deploy-*` | Started | Docker, metrics table, ethics, final report support |
 
 If a teammate has not claimed their role yet, another teammate may make progress on that lane using that lane's branch pattern. When the teammate is ready, they can take over from the latest branch or PR.
 

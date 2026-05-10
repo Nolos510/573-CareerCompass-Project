@@ -184,8 +184,8 @@ ROLE_STATUS = [
     {
         "owner": "TM5",
         "lane": "Evaluation/Deployment",
-        "status": "Upcoming",
-        "summary": "Needs Docker, evaluation docs, ethics writeup, and final report support.",
+        "status": "Started",
+        "summary": "Docker, evaluation plan, ethics notes, and deployment docs are now scaffolded.",
     },
 ]
 
