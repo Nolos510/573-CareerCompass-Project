@@ -27,10 +27,24 @@ If `langgraph` is installed, `build_supervisor_workflow()` compiles a `StateGrap
 
 - `AgentState`: shared state passed between nodes.
 - `AgentHandoff`: traceable inter-agent handoff record.
+- `CareerStrategyOutput`: stable Streamlit-facing output contract from the synthesis node.
 - `AgentName`: allowed workflow node names.
 - `WorkflowIntent`: route intent such as `full_strategy`, `resume_only`, or `interview_only`.
 
 Every specialist should read from and write to `AgentState` rather than inventing separate payload shapes.
+
+## Output Contract
+
+`run_career_analysis()` returns `CareerStrategyOutput` with contract version `careercompass.strategy.v1`.
+
+Before returning to Streamlit, `validate_final_output()` checks:
+
+- All required UI fields are present.
+- The output contract version is supported.
+- The agent trace starts with `supervisor` and ends with `synthesis`.
+- No queued handoffs remain after synthesis.
+
+This is the cross-agent contract teammates should preserve when editing specialist agents or UI views.
 
 ## Agent Logic Handoff
 

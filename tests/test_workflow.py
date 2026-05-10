@@ -1,7 +1,12 @@
 import unittest
 
-from careercompass import AgentState
-from careercompass.agents import create_initial_state, run_career_analysis
+from careercompass import AgentState, CareerStrategyOutput
+from careercompass.agents import (
+    OUTPUT_CONTRACT_VERSION,
+    create_initial_state,
+    run_career_analysis,
+    validate_final_output,
+)
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
 
 
@@ -39,9 +44,14 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         self.assertTrue(result["resume_recommendations"])
         self.assertTrue(result["interview_questions"])
         self.assertIn("CareerCompass Strategy Report", result["final_strategy_report"])
+        self.assertEqual(result["output_contract_version"], OUTPUT_CONTRACT_VERSION)
+        self.assertEqual(result["workflow_intent"], "full_strategy")
+        self.assertTrue(result["route_plan"])
         self.assertEqual(result["agent_trace"][0], "supervisor")
         self.assertEqual(result["agent_trace"][-1], "synthesis")
         self.assertTrue(result["agent_handoffs"])
+        self.assertTrue(CareerStrategyOutput)
+        validate_final_output(result)
 
     def test_resume_only_route_skips_non_resume_agents(self):
         inputs = {**self.inputs, "workflow_intent": "resume_only"}
@@ -64,6 +74,40 @@ class CareerCompassWorkflowTest(unittest.TestCase):
             self.assertIn("required_inputs", handoff)
             self.assertIn("expected_outputs", handoff)
             self.assertIn(handoff["status"], {"queued", "completed", "skipped"})
+
+        self.assertFalse(
+            [handoff for handoff in result["agent_handoffs"] if handoff["status"] == "queued"]
+        )
+
+    def test_workflow_intents_have_expected_routes(self):
+        expected_routes = {
+            "full_strategy": [
+                "market_demand",
+                "gap_analysis",
+                "curriculum",
+                "resume_optimization",
+                "interview_simulation",
+            ],
+            "resume_only": ["market_demand", "gap_analysis", "resume_optimization"],
+            "interview_only": ["market_demand", "gap_analysis", "interview_simulation"],
+        }
+
+        for intent, route in expected_routes.items():
+            with self.subTest(intent=intent):
+                result = run_career_analysis({**self.inputs, "workflow_intent": intent})
+
+                self.assertEqual(result["workflow_intent"], intent)
+                self.assertEqual(result["route_plan"], route)
+                self.assertEqual(result["agent_trace"], ["supervisor", *route, "synthesis"])
+                validate_final_output(result)
+
+    def test_final_output_validation_rejects_incomplete_contract(self):
+        result = run_career_analysis(self.inputs)
+        incomplete = dict(result)
+        incomplete.pop("agent_trace")
+
+        with self.assertRaises(ValueError):
+            validate_final_output(incomplete)
 
 
 if __name__ == "__main__":

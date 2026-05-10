@@ -39,6 +39,7 @@ http://localhost:8503
 
 - `careercompass/state.py` defines the shared `AgentState` and inter-agent handoff schema.
 - `careercompass/agents.py` owns supervisor orchestration and Streamlit-facing output assembly.
+- `run_career_analysis()` returns a validated `CareerStrategyOutput` contract with version `careercompass.strategy.v1`.
 - `careercompass/agent_logic.py`, `careercompass/prompts.py`, `careercompass/schemas.py`, and `careercompass/fallbacks.py` are the agent-logic handoff points for replacing demo behavior with real model calls.
 - `careercompass/rag.py` retrieves local job-posting evidence and derives market skill signals for the Market Demand Agent.
 - The existing remote `RAG/` folder is preserved for teammate RAG pipeline work.

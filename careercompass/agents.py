@@ -13,7 +13,48 @@ from careercompass.agent_logic import (
     run_resume_optimization_logic,
 )
 from careercompass.rag import retrieval_confidence, retrieve_job_postings
-from careercompass.state import AgentHandoff, AgentName, AgentState, WorkflowIntent
+from careercompass.state import (
+    AgentHandoff,
+    AgentName,
+    AgentState,
+    CareerStrategyOutput,
+    WorkflowIntent,
+)
+
+
+OUTPUT_CONTRACT_VERSION = "careercompass.strategy.v1"
+
+REQUIRED_FINAL_OUTPUT_KEYS = {
+    "output_contract_version",
+    "workflow_intent",
+    "route_plan",
+    "target_role",
+    "target_location",
+    "role_label",
+    "match_percentage",
+    "gap_counts",
+    "keyword_coverage",
+    "keyword_targets",
+    "interview_readiness",
+    "market_skills",
+    "retrieved_job_postings",
+    "gap_report",
+    "gap_deep_dives",
+    "learning_roadmap",
+    "resume_recommendations",
+    "resume_templates",
+    "interview_questions",
+    "interview_scenarios",
+    "next_actions",
+    "resume_checklist",
+    "certification_recommendations",
+    "portfolio_ideas",
+    "evaluation_metrics",
+    "final_strategy_report",
+    "agent_trace",
+    "agent_handoffs",
+    "confidence_scores",
+}
 
 
 @dataclass
@@ -35,7 +76,7 @@ class DeterministicCareerWorkflow:
         return state
 
 
-def run_career_analysis(inputs: dict) -> dict:
+def run_career_analysis(inputs: dict) -> CareerStrategyOutput:
     """Run the CareerCompass supervisor workflow.
 
     The UI-facing output schema stays stable whether LangGraph is installed or
@@ -44,7 +85,9 @@ def run_career_analysis(inputs: dict) -> dict:
 
     workflow = build_supervisor_workflow()
     final_state = workflow.invoke(create_initial_state(inputs))
-    return final_state["final_output"]
+    final_output = final_state["final_output"]
+    validate_final_output(final_output)
+    return final_output
 
 
 def create_initial_state(inputs: dict) -> AgentState:
@@ -250,7 +293,10 @@ def synthesis_node(state: AgentState) -> dict[str, Any]:
     completed_agents = _mark_completed(state, "synthesis")
     handoffs = _complete_current_handoffs(state, "synthesis")
 
-    final_output = {
+    final_output: CareerStrategyOutput = {
+        "output_contract_version": OUTPUT_CONTRACT_VERSION,
+        "workflow_intent": state.get("workflow_intent", "full_strategy"),
+        "route_plan": state.get("route_plan", []),
         "target_role": state["target_role"],
         "target_location": state["target_location"],
         "role_label": profile["label"],
@@ -285,6 +331,30 @@ def synthesis_node(state: AgentState) -> dict[str, Any]:
         "completed_agents": completed_agents,
         "handoffs": handoffs,
     }
+
+
+def validate_final_output(final_output: CareerStrategyOutput) -> None:
+    """Assert the cross-agent output contract before the UI consumes it."""
+
+    missing_keys = REQUIRED_FINAL_OUTPUT_KEYS.difference(final_output)
+    if missing_keys:
+        missing = ", ".join(sorted(missing_keys))
+        raise ValueError(f"Final output missing required keys: {missing}")
+
+    if final_output["output_contract_version"] != OUTPUT_CONTRACT_VERSION:
+        raise ValueError("Unsupported CareerCompass output contract version.")
+
+    agent_trace = final_output["agent_trace"]
+    if not agent_trace or agent_trace[0] != "supervisor" or agent_trace[-1] != "synthesis":
+        raise ValueError("Agent trace must begin with supervisor and end with synthesis.")
+
+    queued_handoffs = [
+        handoff
+        for handoff in final_output["agent_handoffs"]
+        if handoff["status"] == "queued"
+    ]
+    if queued_handoffs:
+        raise ValueError("Final output cannot contain queued handoffs.")
 
 
 def route_next_agent(state: AgentState) -> str:

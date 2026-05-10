@@ -8,7 +8,7 @@ The goal is to keep the project moving without creating merge chaos.
 
 | Person | Role | Branch Pattern | Status | Owns |
 | --- | --- | --- | --- | --- |
-| Carlo | Architect / Integration | `carlo-architecture-*` | Claimed | LangGraph supervisor, shared state, integration |
+| Carlo | Architect / Integration | `carlo-architecture-*` | Finalizing | LangGraph supervisor, shared state, integration |
 | Nhi | RAG / Data | `nhi-rag-data-*` | Started | Job postings, ChromaDB/vector search, retrieved evidence |
 | TM3 | Agent Logic | `tm3-agent-logic-*` | Started | OpenAI prompts, JSON outputs, fallback behavior |
 | TM4 | Frontend / Demo | `tm4-frontend-demo-*` | Started | Streamlit polish, screenshots, video flow |
