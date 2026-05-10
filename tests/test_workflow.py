@@ -33,6 +33,7 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         self.assertGreater(result["match_percentage"], 0)
         self.assertGreaterEqual(result["gap_counts"]["high"], 1)
         self.assertTrue(result["market_skills"])
+        self.assertTrue(result["retrieved_job_postings"])
         self.assertTrue(result["gap_report"])
         self.assertTrue(result["learning_roadmap"])
         self.assertTrue(result["resume_recommendations"])

@@ -36,7 +36,9 @@ http://localhost:8502
 - `careercompass/state.py` defines the shared `AgentState` and inter-agent handoff schema.
 - `careercompass/agents.py` owns supervisor orchestration and Streamlit-facing output assembly.
 - `careercompass/agent_logic.py`, `careercompass/prompts.py`, `careercompass/schemas.py`, and `careercompass/fallbacks.py` are the agent-logic handoff points for replacing demo behavior with real model calls.
+- `careercompass/rag.py` retrieves local job-posting evidence and derives market skill signals for the Market Demand Agent.
 - [Architecture handoff](docs/ARCHITECTURE_HANDOFF.md)
+- [Data notes](docs/data_notes.md)
 - [Demo flow](docs/demo_flow.md)
 - [Video script](docs/demo_script.md)
 

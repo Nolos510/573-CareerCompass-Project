@@ -14,6 +14,7 @@ from careercompass.fallbacks import (
 )
 from careercompass.llm_client import call_openai_json
 from careercompass.prompts import build_specialist_prompt
+from careercompass.rag import derive_market_skills
 from careercompass.schemas import (
     InterviewEvaluation,
     InterviewQuestion,
@@ -49,7 +50,10 @@ def run_market_demand_logic(state: AgentState, profile: dict[str, Any]) -> list[
         "market_demand",
         state,
         profile,
-        lambda: market_skill_fallback(profile),
+        lambda: derive_market_skills(
+            state.get("retrieved_job_postings", []),
+            profile["skills"],
+        ),
     )
 
 

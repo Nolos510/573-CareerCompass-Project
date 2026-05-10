@@ -166,8 +166,8 @@ ROLE_STATUS = [
     {
         "owner": "Nhi",
         "lane": "RAG/Data",
-        "status": "Next",
-        "summary": "Needs job-posting ingestion, Chroma/vector search, and retrieved evidence in AgentState.",
+        "status": "Started",
+        "summary": "Local job-posting evidence and retrieval scoring now feed the Market Demand Agent.",
     },
     {
         "owner": "TM3",
@@ -424,6 +424,20 @@ def render_dashboard(analysis: dict) -> None:
     st.subheader("Market demand summary")
     skills = pd.DataFrame(analysis["market_skills"])
     st.dataframe(skills, use_container_width=True, hide_index=True)
+    retrieved_postings = analysis.get("retrieved_job_postings", [])
+    if retrieved_postings:
+        with st.expander("Retrieved job-posting evidence"):
+            evidence_rows = [
+                {
+                    "Company": posting["company"],
+                    "Role": posting["role"],
+                    "Location": posting["location"],
+                    "Score": posting["retrieval_score"],
+                    "Evidence": posting["evidence_summary"],
+                }
+                for posting in retrieved_postings
+            ]
+            st.dataframe(pd.DataFrame(evidence_rows), use_container_width=True, hide_index=True)
 
     st.subheader("Skill gap report")
     gaps = pd.DataFrame(analysis["gap_report"])

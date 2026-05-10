@@ -12,6 +12,7 @@ from careercompass.agent_logic import (
     run_market_demand_logic,
     run_resume_optimization_logic,
 )
+from careercompass.rag import retrieval_confidence, retrieve_job_postings
 from careercompass.state import AgentHandoff, AgentName, AgentState, WorkflowIntent
 
 
@@ -163,12 +164,26 @@ def supervisor_node(state: AgentState) -> dict[str, Any]:
 
 def market_demand_node(state: AgentState) -> dict[str, Any]:
     profile = _profile_from_state(state)
-    market_skills = _market_demand_agent(state, profile)
+    retrieved_job_postings = retrieve_job_postings(
+        state["target_role"],
+        state["target_location"],
+    )
+    state_with_retrieval = {
+        **state,
+        "retrieved_job_postings": retrieved_job_postings,
+    }
+    market_skills = _market_demand_agent(state_with_retrieval, profile)
     return _agent_update(
         state,
         "market_demand",
-        {"market_skills": market_skills},
-        confidence_update={"market_data": 0.74},
+        {
+            "retrieved_job_postings": retrieved_job_postings,
+            "market_skills": market_skills,
+        },
+        confidence_update={
+            "market_data": retrieval_confidence(retrieved_job_postings),
+            "retrieval_evidence": retrieval_confidence(retrieved_job_postings),
+        },
     )
 
 
@@ -245,6 +260,7 @@ def synthesis_node(state: AgentState) -> dict[str, Any]:
         "keyword_targets": _keyword_targets(profile),
         "interview_readiness": profile["interview_readiness"],
         "market_skills": state["market_skills"],
+        "retrieved_job_postings": state["retrieved_job_postings"],
         "gap_report": state["gap_report"],
         "gap_deep_dives": profile["gap_deep_dives"],
         "learning_roadmap": state["learning_roadmap"],

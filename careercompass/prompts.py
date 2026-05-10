@@ -70,6 +70,7 @@ def build_specialist_prompt(agent_name: AgentName, state: AgentState, profile: d
     resume_excerpt = state.get("resume_text", "").strip().replace("\n", " ")[:900]
     if not resume_excerpt:
         resume_excerpt = "No resume text supplied"
+    retrieved_evidence = _format_retrieved_evidence(state)
 
     return dedent(
         f"""
@@ -88,6 +89,9 @@ def build_specialist_prompt(agent_name: AgentName, state: AgentState, profile: d
         - Coursework: {coursework}
         - Resume excerpt: {resume_excerpt}
 
+        Retrieved market evidence:
+        {retrieved_evidence}
+
         Output contract:
         {JSON_OUTPUT_GUIDES[agent_name].strip()}
 
@@ -99,3 +103,17 @@ def build_specialist_prompt(agent_name: AgentName, state: AgentState, profile: d
         """
     ).strip()
 
+
+def _format_retrieved_evidence(state: AgentState) -> str:
+    postings = state.get("retrieved_job_postings", [])
+    if not postings:
+        return "- No retrieved postings supplied yet."
+
+    rows = []
+    for posting in postings[:5]:
+        rows.append(
+            "- "
+            f"{posting['company']} | {posting['role']} | {posting['location']} | "
+            f"skills: {', '.join(posting.get('skills', [])[:6])}"
+        )
+    return "\n".join(rows)

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ba-sf-001",
+    "role": "Business Analyst",
+    "company": "Salesforce",
+    "location": "San Francisco Bay Area",
+    "date": "2026-04-15",
+    "skills": ["SQL", "Tableau", "requirements gathering", "stakeholder communication", "KPIs", "Agile"],
+    "description": "Business Analyst role focused on translating stakeholder needs into dashboard requirements, SQL analysis, KPI reporting, and Tableau insights for go-to-market teams."
+  },
+  {
+    "id": "ba-sf-002",
+    "role": "Business Analyst",
+    "company": "Block",
+    "location": "Oakland / San Francisco Bay Area",
+    "date": "2026-04-22",
+    "skills": ["SQL", "Power BI", "Excel", "data analysis", "stakeholder communication", "process improvement"],
+    "description": "Entry-level analyst supporting operations teams with SQL queries, Power BI reporting, Excel analysis, process documentation, and recommendations for business stakeholders."
+  },
+  {
+    "id": "ba-sf-003",
+    "role": "Data Analyst",
+    "company": "Uber",
+    "location": "San Francisco Bay Area",
+    "date": "2026-04-28",
+    "skills": ["SQL", "Python", "Tableau", "experimentation", "KPIs", "data storytelling"],
+    "description": "Analytics role using SQL, Python, Tableau, experimentation metrics, and clear data storytelling to support marketplace decisions."
+  },
+  {
+    "id": "pm-sf-001",
+    "role": "Project Manager",
+    "company": "Cisco",
+    "location": "San Jose / San Francisco Bay Area",
+    "date": "2026-04-20",
+    "skills": ["Agile", "Jira", "risk management", "milestones", "stakeholder communication", "scope"],
+    "description": "Project Manager coordinating technical delivery, tracking milestones in Jira, managing risks, clarifying scope, and communicating with stakeholders."
+  },
+  {
+    "id": "pm-sf-002",
+    "role": "Associate Project Manager",
+    "company": "Adobe",
+    "location": "San Francisco Bay Area",
+    "date": "2026-04-25",
+    "skills": ["project coordination", "Agile", "Scrum", "timeline management", "risk management", "presentation"],
+    "description": "Associate PM role supporting Agile delivery, meeting facilitation, timeline management, risk tracking, and executive-ready project updates."
+  },
+  {
+    "id": "hybrid-sf-001",
+    "role": "Business Systems Analyst",
+    "company": "Workday",
+    "location": "Pleasanton / San Francisco Bay Area",
+    "date": "2026-04-18",
+    "skills": ["requirements gathering", "SQL", "process mapping", "stakeholder communication", "user acceptance testing", "Agile"],
+    "description": "Business Systems Analyst gathering requirements, mapping processes, validating user acceptance tests, querying data with SQL, and partnering with Agile delivery teams."
+  },
+  {
+    "id": "ba-remote-001",
+    "role": "Business Analyst",
+    "company": "IBM",
+    "location": "Remote",
+    "date": "2026-04-30",
+    "skills": ["requirements gathering", "Excel", "SQL", "Power BI", "business process", "documentation"],
+    "description": "Remote analyst documenting business processes, writing requirements, analyzing data in SQL and Excel, and building Power BI reporting for client teams."
+  },
+  {
+    "id": "pm-remote-001",
+    "role": "Technical Project Coordinator",
+    "company": "Atlassian",
+    "location": "Remote",
+    "date": "2026-04-27",
+    "skills": ["Jira", "project coordination", "Agile", "stakeholder communication", "milestones", "documentation"],
+    "description": "Technical project coordination role using Jira, Agile ceremonies, milestone tracking, stakeholder updates, and delivery documentation."
+  }
+]
