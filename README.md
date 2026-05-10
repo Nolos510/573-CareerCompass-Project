@@ -1,4 +1,8 @@
-# CareerCompass Streamlit MVP
+# 573-CareerCompass-Project
+
+An Agentic AI System for Personalized Career Strategy and Skill Development.
+
+## CareerCompass Streamlit MVP
 
 CareerCompass is a class demo for an agentic AI career strategy system. This MVP uses Streamlit to show the planned end-to-end user journey for a recent MIS graduate targeting Business Analyst roles in San Francisco.
 
@@ -14,13 +18,13 @@ streamlit run app.py
 On this machine, the app is currently running with Anaconda Python:
 
 ```powershell
-C:\Users\knolo\anaconda3\python.exe -m streamlit run app.py --server.port 8502
+C:\Users\knolo\anaconda3\python.exe -m streamlit run app.py --server.port 8503
 ```
 
 Local URL:
 
 ```text
-http://localhost:8502
+http://localhost:8503
 ```
 
 ## Demo Path
@@ -37,6 +41,7 @@ http://localhost:8502
 - `careercompass/agents.py` owns supervisor orchestration and Streamlit-facing output assembly.
 - `careercompass/agent_logic.py`, `careercompass/prompts.py`, `careercompass/schemas.py`, and `careercompass/fallbacks.py` are the agent-logic handoff points for replacing demo behavior with real model calls.
 - `careercompass/rag.py` retrieves local job-posting evidence and derives market skill signals for the Market Demand Agent.
+- The existing remote `RAG/` folder is preserved for teammate RAG pipeline work.
 - [Architecture handoff](docs/ARCHITECTURE_HANDOFF.md)
 - [Data notes](docs/data_notes.md)
 - [Demo flow](docs/demo_flow.md)
@@ -52,3 +57,4 @@ Wire `careercompass/agent_logic.py` to OpenAI or Anthropic calls, validate the r
 - [Git sync workflow for this repo](docs/GIT_SYNC_WORKFLOW.md)
 - [CareerCompass team development split](docs/CAREERCOMPASS_TEAM_DEV_SPLIT.md)
 - [Reusable group project SOP template](docs/GROUP_PROJECT_SOP_TEMPLATE.md)
+
