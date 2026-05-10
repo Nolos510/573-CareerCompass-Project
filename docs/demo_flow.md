@@ -18,6 +18,10 @@ http://localhost:8502
 
 Keep Presenter mode enabled for recording. Turn it off only if you want cleaner screenshots without cues.
 
+Click **Reset sample demo profile** before recording or presenting so the walkthrough starts from a predictable state.
+
+For repeatable screenshot capture, append `?demo_autorun=1&demo_view=dashboard` to auto-run the sample profile. Supported `demo_view` values are `dashboard`, `roadmap`, `resume`, `interview`, `report`, and `checklist`.
+
 ## Demo Path
 
 1. **Landing and Inputs**

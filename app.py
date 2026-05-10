@@ -204,6 +204,15 @@ DEMO_CUES = {
     "Action Checklist": "Close with practical next steps: certifications, missing evidence, and portfolio proof.",
 }
 
+DEMO_VIEW_PARAMS = {
+    "dashboard": "Dashboard",
+    "roadmap": "Roadmap",
+    "resume": "Resume",
+    "interview": "Interview",
+    "report": "Final Report",
+    "checklist": "Action Checklist",
+}
+
 
 st.set_page_config(
     page_title="CareerCompass",
@@ -241,6 +250,55 @@ def initialize_state() -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+
+def reset_demo_profile() -> None:
+    st.session_state.analysis = None
+    st.session_state.latency_seconds = None
+    st.session_state.active_view = "Dashboard"
+    st.session_state.last_resume_upload = None
+    st.session_state.resume_upload_notice = "Sample MIS graduate profile restored."
+    st.session_state.resume_text_area = SAMPLE_RESUME
+    st.session_state.target_role_choice = "Business Analyst"
+    st.session_state.custom_target_role = ""
+    st.session_state.target_location_choice = "San Francisco Bay Area"
+    st.session_state.custom_target_location = ""
+    st.session_state.coursework_selection = SAMPLE_COURSEWORK
+    st.session_state.additional_coursework = ""
+    st.session_state.resume_draft = ""
+    st.session_state.selected_resume_template = "ATS chronological"
+    st.session_state.custom_resume_template = ""
+    st.session_state.practice_questions = None
+    st.session_state.interview_evaluation = None
+    st.session_state.demo_autorun_view = None
+
+
+def sample_demo_inputs() -> dict:
+    return {
+        "resume_text": SAMPLE_RESUME,
+        "target_role": "Business Analyst",
+        "target_location": "San Francisco Bay Area",
+        "timeline_days": 90,
+        "coursework": SAMPLE_COURSEWORK,
+    }
+
+
+def apply_demo_query_params() -> None:
+    if st.query_params.get("demo_autorun") != "1":
+        return
+
+    view_param = st.query_params.get("demo_view", "dashboard")
+    st.session_state.active_view = DEMO_VIEW_PARAMS.get(view_param, "Dashboard")
+
+    if st.session_state.get("demo_autorun_view") == view_param and st.session_state.analysis:
+        return
+
+    started_at = time.perf_counter()
+    st.session_state.analysis = run_career_analysis(sample_demo_inputs())
+    st.session_state.latency_seconds = time.perf_counter() - started_at
+    st.session_state.practice_questions = None
+    st.session_state.interview_evaluation = None
+    st.session_state.demo_autorun_view = view_param
 
 
 def render_sidebar() -> None:
@@ -335,6 +393,16 @@ def render_inputs() -> dict:
     st.caption(
         "Paste a resume or upload a local file, then choose the role and hiring-readiness timeline."
     )
+
+    reset_col, note_col = st.columns([0.35, 0.65])
+    with reset_col:
+        if st.button("Reset sample demo profile"):
+            reset_demo_profile()
+            st.rerun()
+    with note_col:
+        st.caption(
+            "Use reset before recording so the walkthrough starts from a predictable sample profile."
+        )
 
     left, right = st.columns([1.25, 1])
 
@@ -783,6 +851,7 @@ def main() -> None:
     apply_visual_style()
     initialize_state()
     render_sidebar()
+    apply_demo_query_params()
 
     st.markdown(
         """
