@@ -1,8 +1,11 @@
 import unittest
+from importlib.util import find_spec
 
 from careercompass import AgentState, CareerStrategyOutput
 from careercompass.agents import (
+    DeterministicCareerWorkflow,
     OUTPUT_CONTRACT_VERSION,
+    build_supervisor_workflow,
     create_initial_state,
     run_career_analysis,
     validate_final_output,
@@ -30,6 +33,21 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         self.assertEqual(state["gap_report"], [])
         self.assertEqual(state["workflow_intent"], "full_strategy")
         self.assertTrue(AgentState)
+
+    def test_build_supervisor_workflow_uses_langgraph_when_installed(self):
+        if find_spec("langgraph") is None:
+            self.skipTest("LangGraph is not installed in this Python environment.")
+
+        workflow = build_supervisor_workflow()
+
+        self.assertNotIsInstance(workflow, DeterministicCareerWorkflow)
+        self.assertEqual(type(workflow).__module__, "langgraph.graph.state")
+        self.assertTrue(hasattr(workflow, "invoke"))
+
+        final_state = workflow.invoke(create_initial_state(self.inputs))
+        self.assertEqual(final_state["final_output"]["output_contract_version"], OUTPUT_CONTRACT_VERSION)
+        self.assertEqual(final_state["completed_agents"][0], "supervisor")
+        self.assertEqual(final_state["completed_agents"][-1], "synthesis")
 
     def test_full_supervisor_workflow_returns_ui_contract(self):
         result = run_career_analysis(self.inputs)

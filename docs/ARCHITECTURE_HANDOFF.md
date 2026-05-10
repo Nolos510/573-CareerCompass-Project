@@ -19,7 +19,9 @@ flowchart LR
     I --> J["Career Strategy Output"]
 ```
 
-If `langgraph` is installed, `build_supervisor_workflow()` compiles a `StateGraph`. If it is not installed, the app uses `DeterministicCareerWorkflow`, which follows the same route and output contract for reliable class demos.
+If `langgraph` is installed, `build_supervisor_workflow()` compiles a `StateGraph` into `langgraph.graph.state.CompiledStateGraph`. If it is not installed, the app uses `DeterministicCareerWorkflow`, which follows the same route and output contract for reliable class demos.
+
+The local Anaconda environment has been verified with LangGraph installed, and `tests/test_workflow.py` includes a regression test for the compiled graph path.
 
 ## Shared State Contract
 
