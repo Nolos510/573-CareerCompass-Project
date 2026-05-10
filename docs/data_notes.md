@@ -19,6 +19,33 @@ The sample is intentionally lightweight so the app can run without API keys, scr
 - Associate Project Manager.
 - Technical Project Coordinator.
 
+The recommended full source for the next MVP data refresh is the Kaggle
+LinkedIn Job Postings dataset:
+
+```text
+https://www.kaggle.com/datasets/arshkon/linkedin-job-postings
+```
+
+The dataset includes `postings.csv` with job title, description, salary,
+location, work type, experience level, application URL, and related metadata.
+It also includes company and mapping files for richer future retrieval. Kaggle
+downloads usually require a Kaggle account/API token, so the raw files are not
+committed to this repo.
+
+To refresh the local MVP fixture after downloading the dataset:
+
+```powershell
+python -m careercompass.kaggle_ingest `
+  --input DATA/linkedin-job-postings `
+  --output careercompass/data/job_postings.json `
+  --limit 200
+```
+
+Supported input forms are the downloaded zip, the extracted dataset folder, or
+a direct `postings.csv` / `job_postings.csv` file. The converter filters for
+CareerCompass-relevant analyst/project roles in Bay Area or remote locations
+and normalizes rows to the current retrieval contract.
+
 ## Current Retrieval Method
 
 `careercompass/rag.py` implements deterministic lexical retrieval:
@@ -34,7 +61,7 @@ This gives the Market Demand Agent retrieved evidence now and creates a clean re
 
 Nhi can replace or extend `retrieve_job_postings()` with:
 
-- Kaggle LinkedIn job posting dataset ingestion.
+- Kaggle LinkedIn job posting dataset ingestion via `careercompass/kaggle_ingest.py`.
 - ChromaDB collection creation.
 - Embeddings using OpenAI `text-embedding-3-small`.
 - Metadata filters for role, location, company, and posting date.
@@ -66,4 +93,3 @@ The current local sample is not representative of the full labor market. It is u
 - Entry-level postings can vary widely by company.
 - Skill counts from small samples should be treated as directional, not authoritative.
 - Recommendations should be reviewed with a career advisor.
-
