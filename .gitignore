@@ -1,0 +1,11 @@
+.venv/
+.tmp/
+.packages/
+__pycache__/
+*.pyc
+streamlit*.log
+DATA/
+data/raw/
+data/processed/
+*.zip
+
