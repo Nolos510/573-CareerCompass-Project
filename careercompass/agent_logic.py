@@ -8,7 +8,6 @@ from careercompass.fallbacks import (
     gap_report_fallback,
     interview_evaluation_fallback,
     interview_question_fallback,
-    market_skill_fallback,
     resume_recommendation_fallback,
     roadmap_fallback,
 )
@@ -22,6 +21,7 @@ from careercompass.schemas import (
     ResumeRecommendation,
     RoadmapPhase,
     SkillGap,
+    response_format_for_agent,
 )
 from careercompass.state import AgentName, AgentState
 
@@ -42,6 +42,12 @@ REQUIRED_RECORD_KEYS: dict[AgentName, set[str]] = {
     "curriculum": {"period", "goal", "tasks", "resource_relevance"},
     "resume_optimization": {"before", "after", "keywords_added"},
     "interview_simulation": {"type", "question", "rubric_focus"},
+}
+
+ALLOWED_VALUES: dict[str, set[str]] = {
+    "Demand Signal": {"Very high", "High", "Medium", "Low"},
+    "Severity": {"High", "Medium", "Low"},
+    "type": {"Behavioral", "Technical", "Scenario"},
 }
 
 
@@ -90,7 +96,13 @@ def run_interview_question_logic(
     scenario: str,
     profile: dict[str, Any],
 ) -> list[InterviewQuestion]:
-    return interview_question_fallback(target_role, company, scenario, profile)
+    state = _interview_state(target_role, company, scenario)
+    return _run_list_agent_or_fallback(
+        "interview_simulation",
+        state,
+        profile,
+        lambda: interview_question_fallback(target_role, company, scenario, profile),
+    )
 
 
 def run_interview_evaluation_logic(question: str, answer: str, rubric_focus: str) -> InterviewEvaluation:
@@ -140,6 +152,7 @@ def validate_agent_output(agent_name: AgentName, payload: dict[str, Any]) -> Any
         if missing:
             missing_keys = ", ".join(sorted(missing))
             raise ValueError(f"{output_key}[{index}] missing required keys: {missing_keys}")
+        _validate_record_values(output_key, index, record)
 
     return value
 
@@ -153,8 +166,9 @@ def _run_list_agent_or_fallback(
     prompt = _build_prompt_for_future_llm(agent_name, state, profile)
 
     try:
-        raw_response = call_openai_json(prompt)
-    except Exception:
+        raw_response = call_openai_json(prompt, response_format_for_agent(agent_name))
+    except Exception as exc:  # noqa: BLE001 - every model-path failure must fall back.
+        _record_model_error(state, agent_name, exc)
         return fallback_factory()
 
     if not raw_response:
@@ -163,7 +177,8 @@ def _run_list_agent_or_fallback(
     try:
         payload = parse_json_object(raw_response)
         return validate_agent_output(agent_name, payload)
-    except (json.JSONDecodeError, ValueError, TypeError):
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        _record_model_error(state, agent_name, exc)
         return fallback_factory()
 
 
@@ -171,3 +186,68 @@ def _build_prompt_for_future_llm(agent_name: AgentName, state: AgentState, profi
     """Central hook for replacing deterministic fallbacks with real model calls."""
 
     return build_specialist_prompt(agent_name, state, profile)
+
+
+def _record_model_error(state: AgentState, agent_name: AgentName, exc: Exception) -> None:
+    errors = state.setdefault("errors", [])
+    message = _sanitize_error(str(exc) or exc.__class__.__name__)
+    errors.append(f"{agent_name}: OpenAI structured output failed; used fallback. {message}")
+
+
+def _sanitize_error(message: str) -> str:
+    sanitized = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-...", message)
+    sanitized = re.sub(r"api[_ -]?key[=:]\s*['\"]?[^'\"\s]+", "api_key=...", sanitized, flags=re.IGNORECASE)
+    return sanitized[:240]
+
+
+def _validate_record_values(output_key: str, index: int, record: dict[str, Any]) -> None:
+    for key, value in record.items():
+        label = f"{output_key}[{index}].{key}"
+        if key in {"tasks", "keywords_added"}:
+            _require_string_list(value, label)
+        else:
+            _require_non_empty_string(value, label)
+
+        allowed = ALLOWED_VALUES.get(key)
+        if allowed and value not in allowed:
+            allowed_values = ", ".join(sorted(allowed))
+            raise ValueError(f"{label} must be one of: {allowed_values}")
+
+
+def _require_non_empty_string(value: Any, label: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must be a non-empty string.")
+
+
+def _require_string_list(value: Any, label: str) -> None:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{label} must be a non-empty list.")
+    if not all(isinstance(item, str) and item.strip() for item in value):
+        raise ValueError(f"{label} must contain only non-empty strings.")
+
+
+def _interview_state(target_role: str, company: str, scenario: str) -> AgentState:
+    return {
+        "user_profile": {},
+        "target_role": target_role,
+        "target_location": "Not supplied",
+        "timeline_days": 90,
+        "resume_text": "",
+        "coursework": [],
+        "retrieved_job_postings": [],
+        "market_skills": [],
+        "gap_report": [],
+        "learning_roadmap": [],
+        "resume_recommendations": [],
+        "interview_questions": [],
+        "interview_feedback": [],
+        "confidence_scores": {},
+        "final_strategy_report": "",
+        "workflow_intent": "interview_only",
+        "route_plan": ["interview_simulation"],
+        "completed_agents": [],
+        "handoffs": [],
+        "errors": [],
+        "interview_company": company,
+        "interview_scenario": scenario,
+    }
