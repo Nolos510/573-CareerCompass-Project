@@ -11,8 +11,9 @@ from careercompass.agent_logic import (
     run_market_demand_logic,
     validate_agent_output,
 )
-from careercompass.agents import _role_profile, create_initial_state, generate_interview_questions
+from careercompass.agents import _keyword_coverage, _role_profile, create_initial_state, generate_interview_questions
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
+from careercompass.fallbacks import assess_skill_evidence, skill_is_evidenced
 from careercompass.llm_client import ModelCallError, call_openai_json, llm_mode_enabled
 from careercompass.prompts import build_specialist_prompt
 
@@ -52,6 +53,55 @@ class AgentLogicTest(unittest.TestCase):
         self.assertIn(gaps[0]["Severity"], {"High", "Medium", "Low"})
         self.assertIn("First Step", gaps[0])
         self.assertIn("Resume Proof", gaps[0])
+
+    def test_skill_evidence_distinguishes_mentioned_from_strong(self):
+        mentioned = assess_skill_evidence("Python", "Skills\nPython, Excel, SQL", [])
+        strong = assess_skill_evidence(
+            "Python",
+            "Built a Python script to automate weekly reporting and reduce manual work.",
+            [],
+        )
+
+        self.assertEqual(mentioned["status"], "Mentioned")
+        self.assertEqual(strong["status"], "Strong Evidence")
+        self.assertTrue(skill_is_evidenced("Python", "Skills\nPython", []))
+
+    def test_skill_evidence_detects_sql_aliases(self):
+        for text in [
+            "Designed a database schema for registration reporting.",
+            "Wrote joins and CTEs to compare customer cohorts.",
+            "Created queries for weekly operational reports.",
+        ]:
+            with self.subTest(text=text):
+                result = assess_skill_evidence("SQL", text, [])
+                self.assertNotEqual(result["status"], "Missing")
+
+    def test_coursework_only_evidence_counts_as_mentioned(self):
+        result = assess_skill_evidence("SQL", "", ["SQL for Data Analysis"])
+
+        self.assertEqual(result["status"], "Mentioned")
+        self.assertEqual(result["evidence_source"], "Coursework")
+
+    def test_keyword_coverage_weights_strong_evidence_above_mentions(self):
+        market_skills = [
+            {"Skill": "SQL", "Demand Signal": "High", "Evidence": "Required"},
+            {"Skill": "Python", "Demand Signal": "High", "Evidence": "Required"},
+        ]
+        mentioned_coverage = _keyword_coverage(
+            market_skills,
+            "Skills: SQL, Python",
+            [],
+            self.profile,
+        )
+        strong_coverage = _keyword_coverage(
+            market_skills,
+            "Built SQL reports and automated weekly reporting with a Python script.",
+            [],
+            self.profile,
+        )
+
+        self.assertGreater(strong_coverage, mentioned_coverage)
+        self.assertEqual(strong_coverage, 100)
 
     def test_interview_evaluation_scores_empty_answer_as_zero(self):
         result = run_interview_evaluation_logic("Tell me about a project.", "", "STAR")

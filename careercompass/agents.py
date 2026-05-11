@@ -12,7 +12,7 @@ from careercompass.agent_logic import (
     run_market_demand_logic,
     run_resume_optimization_logic,
 )
-from careercompass.fallbacks import skill_is_evidenced
+from careercompass.fallbacks import assess_skill_evidence
 from careercompass.rag import retrieval_confidence, retrieve_job_postings
 from careercompass.state import (
     AgentHandoff,
@@ -966,12 +966,21 @@ def _keyword_coverage(
         return profile["keyword_coverage"]
 
     checked_skills = market_skills[:8]
-    covered = sum(
-        1
+    coverage_score = sum(
+        _evidence_credit(
+            assess_skill_evidence(skill["Skill"], resume_text, coursework)["status"]
+        )
         for skill in checked_skills
-        if skill_is_evidenced(skill["Skill"], resume_text, coursework)
     )
-    return round((covered / max(len(checked_skills), 1)) * 100)
+    return round((coverage_score / max(len(checked_skills), 1)) * 100)
+
+
+def _evidence_credit(status: str) -> float:
+    if status == "Strong Evidence":
+        return 1.0
+    if status == "Mentioned":
+        return 0.5
+    return 0.0
 
 
 def _match_percentage(keyword_coverage: int, gap_report: list[dict]) -> int:

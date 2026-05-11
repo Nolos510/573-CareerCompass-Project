@@ -5,17 +5,17 @@ from typing import Any
 
 
 SKILL_ALIASES = {
-    "Agile": ["agile", "scrum", "sprint"],
-    "Excel": ["excel", "spreadsheet", "spreadsheets"],
-    "Jira": ["jira", "atlassian"],
+    "Agile": ["agile", "scrum", "sprint", "backlog", "standup", "retrospective"],
+    "Excel": ["excel", "spreadsheet", "spreadsheets", "pivot table", "vlookup", "power query"],
+    "Jira": ["jira", "atlassian", "asana", "trello", "project board"],
     "KPIs": ["kpi", "kpis", "metric", "metrics"],
-    "Power BI": ["power bi", "powerbi"],
-    "Python": ["python"],
-    "SQL": ["sql", "database", "queries", "query"],
-    "Tableau": ["tableau"],
-    "stakeholder communication": ["stakeholder", "stakeholders", "presentation", "communication"],
-    "requirements gathering": ["requirements", "business requirements", "user stories"],
-    "risk management": ["risk", "risks", "mitigation"],
+    "Power BI": ["power bi", "powerbi", "bi dashboard", "business intelligence"],
+    "Python": ["python", "pandas", "numpy", "jupyter", "script", "automation"],
+    "SQL": ["sql", "database", "queries", "query", "joins", "join", "cte", "ctes", "window functions"],
+    "Tableau": ["tableau", "dashboard", "visualization", "reporting"],
+    "stakeholder communication": ["stakeholder", "stakeholders", "presentation", "communication", "cross-functional"],
+    "requirements gathering": ["requirements", "business requirements", "user stories", "acceptance criteria"],
+    "risk management": ["risk", "risks", "mitigation", "risk register", "blocker", "dependency"],
     "project coordination": ["project coordination", "coordinated", "led a team", "team project"],
     "milestones": ["milestone", "milestones", "timeline", "schedule"],
     "documentation": ["documentation", "documenting", "documented"],
@@ -23,14 +23,39 @@ SKILL_ALIASES = {
     "data storytelling": ["storytelling", "presenting findings", "recommendations"],
     "process improvement": ["process improvement", "improvement"],
     "process mapping": ["process mapping", "process map"],
-    "user acceptance testing": ["uat", "user acceptance", "testing"],
+    "user acceptance testing": ["uat", "user acceptance", "testing", "acceptance testing"],
     "business process": ["business process", "process"],
-    "experimentation": ["experimentation", "experiment", "a/b"],
+    "experimentation": ["experimentation", "experiment", "a/b", "ab test", "a/b testing"],
     "scope": ["scope", "scoping"],
-    "Scrum": ["scrum", "sprint"],
+    "Scrum": ["scrum", "sprint", "backlog", "standup"],
     "timeline management": ["timeline", "schedule"],
     "presentation": ["presentation", "presented", "presenting"],
 }
+
+STRONG_EVIDENCE_TERMS = [
+    "achieved",
+    "analyzed",
+    "automated",
+    "built",
+    "created",
+    "delivered",
+    "designed",
+    "developed",
+    "documented",
+    "improved",
+    "increased",
+    "led",
+    "managed",
+    "measured",
+    "presented",
+    "queried",
+    "reduced",
+    "reported",
+    "resolved",
+    "supported",
+    "tracked",
+    "validated",
+]
 
 
 def market_skill_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -63,25 +88,42 @@ def gap_report_fallback(
 
 
 def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[dict[str, Any]]:
-    evidence_text = _student_evidence_text(state)
     missing_rows = []
+    mentioned_rows = []
     covered_rows = []
 
     for market_skill in state.get("market_skills", [])[:8]:
         skill = market_skill["Skill"]
-        evidenced = _skill_is_evidenced(skill, evidence_text)
+        evidence = assess_skill_evidence(
+            skill,
+            state.get("resume_text", ""),
+            state.get("coursework", []),
+        )
         demand = market_skill.get("Demand Signal", "Medium")
 
-        if evidenced:
+        if evidence["status"] == "Strong Evidence":
             row = {
                 "Skill": skill,
-                "Current Evidence": f"Found evidence of {skill} in the resume or coursework.",
+                "Current Evidence": f"Strong evidence found: {evidence['evidence_excerpt']}",
                 "Severity": "Low",
-                "Recommendation": f"Keep {skill} visible and add a measurable result or project outcome.",
-                "First Step": f"Add one bullet that shows how {skill} supported a business or project decision.",
+                "Recommendation": f"Keep {skill} visible and quantify the outcome where possible.",
+                "First Step": f"Make the strongest {skill} bullet easy to scan near the top of the resume.",
                 "Resume Proof": f"Name {skill}, the project context, and the outcome it supported.",
             }
             covered_rows.append(row)
+            continue
+
+        if evidence["status"] == "Mentioned":
+            severity = "Medium" if demand in {"Very high", "High"} else "Low"
+            row = {
+                "Skill": skill,
+                "Current Evidence": f"Mentioned, but proof is light: {evidence['evidence_excerpt']}",
+                "Severity": severity,
+                "Recommendation": f"Turn the {skill} mention into a project, work, or coursework bullet with a result.",
+                "First Step": f"Add one bullet showing how you used {skill} to produce a deliverable or decision.",
+                "Resume Proof": f"Show {skill} in context: action, deliverable, stakeholder, and measurable result if available.",
+            }
+            mentioned_rows.append(row)
             continue
 
         severity = "High" if demand in {"Very high", "High"} else "Medium"
@@ -95,7 +137,7 @@ def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[
         }
         missing_rows.append(row)
 
-    rows = missing_rows + covered_rows
+    rows = missing_rows + mentioned_rows + covered_rows
     if rows:
         return rows
 
@@ -103,7 +145,58 @@ def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[
 
 
 def skill_is_evidenced(skill: str, resume_text: str, coursework: list[str]) -> bool:
-    return _skill_is_evidenced(skill, _normalize_text(f"{resume_text} {' '.join(coursework)}"))
+    return assess_skill_evidence(skill, resume_text, coursework)["status"] != "Missing"
+
+
+def assess_skill_evidence(skill: str, resume_text: str, coursework: list[str]) -> dict[str, Any]:
+    """Classify whether a skill is missing, mentioned, or supported by contextual evidence."""
+
+    resume_matches = _find_term_matches(skill, resume_text)
+    coursework_text = " ".join(coursework)
+    coursework_matches = _find_term_matches(skill, coursework_text)
+    matches = [*resume_matches, *coursework_matches]
+
+    if not matches:
+        return {
+            "skill": skill,
+            "status": "Missing",
+            "matched_terms": [],
+            "evidence_source": "None",
+            "evidence_excerpt": "No matching resume or coursework evidence found.",
+            "confidence": 0.0,
+        }
+
+    for match in resume_matches:
+        if _has_strong_context(match["excerpt"]):
+            return {
+                "skill": skill,
+                "status": "Strong Evidence",
+                "matched_terms": sorted({item["term"] for item in matches}),
+                "evidence_source": "Resume",
+                "evidence_excerpt": match["excerpt"],
+                "confidence": 0.9,
+            }
+
+    if coursework_matches:
+        match = coursework_matches[0]
+        return {
+            "skill": skill,
+            "status": "Mentioned",
+            "matched_terms": sorted({item["term"] for item in matches}),
+            "evidence_source": "Coursework",
+            "evidence_excerpt": match["excerpt"],
+            "confidence": 0.55,
+        }
+
+    match = resume_matches[0]
+    return {
+        "skill": skill,
+        "status": "Mentioned",
+        "matched_terms": sorted({item["term"] for item in matches}),
+        "evidence_source": "Resume",
+        "evidence_excerpt": match["excerpt"],
+        "confidence": 0.6,
+    }
 
 
 def _student_evidence_text(state: dict[str, Any]) -> str:
@@ -124,11 +217,58 @@ def _skill_is_evidenced(skill: str, evidence_text: str) -> bool:
     return False
 
 
+def _find_term_matches(skill: str, text: str) -> list[dict[str, str]]:
+    matches = []
+    for excerpt in _evidence_segments(text):
+        normalized_excerpt = _normalize_text(excerpt)
+        for term in _skill_terms(skill):
+            if re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized_excerpt):
+                matches.append({"term": term, "excerpt": _compact_excerpt(excerpt)})
+                break
+    return matches
+
+
+def _evidence_segments(text: str) -> list[str]:
+    segments = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        sentence_parts = re.split(r"(?<=[.!?])\s+", stripped)
+        segments.extend(part.strip() for part in sentence_parts if part.strip())
+    if not segments and text.strip():
+        segments = [text.strip()]
+    return segments
+
+
+def _has_strong_context(excerpt: str) -> bool:
+    normalized_excerpt = _normalize_text(excerpt)
+    if any(term in normalized_excerpt for term in STRONG_EVIDENCE_TERMS):
+        return True
+    if re.search(r"\d+%|\$[\d,.]+|\b\d+\s*(hours?|days?|weeks?|users?|reports?|dashboards?)\b", normalized_excerpt):
+        return True
+    return False
+
+
+def _compact_excerpt(excerpt: str, limit: int = 180) -> str:
+    compact = re.sub(r"\s+", " ", excerpt).strip().lstrip("-*• ").strip()
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3].rsplit(" ", 1)[0].rstrip(",.;:") + "..."
+
+
 def _skill_terms(skill: str) -> list[str]:
     terms = [skill.lower()]
-    terms.extend(SKILL_ALIASES.get(skill, []))
+    for alias_key, aliases in SKILL_ALIASES.items():
+        if alias_key.lower() == skill.lower():
+            terms.extend(aliases)
+            break
     if "/" in skill or " or " in skill.lower():
         terms.extend(re.split(r"\s*/\s*|\s+or\s+", skill.lower()))
+        for part in re.split(r"\s*/\s*|\s+or\s+", skill):
+            for alias_key, aliases in SKILL_ALIASES.items():
+                if alias_key.lower() == part.strip().lower():
+                    terms.extend(aliases)
     return [_normalize_text(term) for term in terms if term.strip()]
 
 
