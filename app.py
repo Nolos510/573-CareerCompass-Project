@@ -31,17 +31,33 @@ ACCENT_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
+:root {
+    --cc-navy-950: #07111f;
+    --cc-navy-900: #0b1628;
+    --cc-navy-800: #12243a;
+    --cc-teal-500: #14b8a6;
+    --cc-teal-600: #0f766e;
+    --cc-blue-500: #2563eb;
+    --cc-amber-500: #f59e0b;
+    --cc-surface: rgba(255, 255, 255, 0.92);
+    --cc-surface-strong: #ffffff;
+    --cc-border: rgba(15, 23, 42, 0.1);
+    --cc-text: #101827;
+    --cc-muted: #64748b;
+}
+
 .stApp {
     background:
-        radial-gradient(circle at 12% 8%, rgba(20, 184, 166, 0.16), transparent 28%),
-        radial-gradient(circle at 86% 10%, rgba(249, 115, 22, 0.14), transparent 26%),
-        linear-gradient(145deg, #f7fbff 0%, #eef6f5 48%, #fff8f1 100%);
-    color: #111827;
+        linear-gradient(115deg, rgba(20, 184, 166, 0.08) 0 1px, transparent 1px 96px),
+        linear-gradient(180deg, #f6fbfd 0%, #eef6f8 52%, #f8fbff 100%);
+    color: var(--cc-text);
     font-family: Inter, sans-serif;
 }
 
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #101827 0%, #172033 54%, #0f766e 135%);
+    background:
+        linear-gradient(180deg, var(--cc-navy-950) 0%, var(--cc-navy-900) 58%, #0b3f4a 100%);
+    border-right: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 [data-testid="stSidebar"] * {
@@ -51,19 +67,157 @@ ACCENT_CSS = """
 h1 {
     font-weight: 800;
     letter-spacing: 0;
+    color: #101827;
 }
 
 h2, h3 {
     letter-spacing: 0;
+    color: #1f2937;
+}
+
+p, .stCaptionContainer {
+    color: var(--cc-muted);
 }
 
 .cc-hero {
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 18px;
-    padding: 22px 26px;
-    margin: 8px 0 20px 0;
-    background: linear-gradient(120deg, rgba(255,255,255,0.92), rgba(240,253,250,0.86));
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(20, 184, 166, 0.2);
+    border-radius: 16px;
+    padding: 26px 28px;
+    margin: 8px 0 22px 0;
+    background:
+        linear-gradient(135deg, rgba(7, 17, 31, 0.97), rgba(13, 37, 58, 0.96) 60%, rgba(15, 118, 110, 0.92)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 48px);
+    box-shadow: 0 22px 55px rgba(15, 23, 42, 0.18);
+}
+
+.cc-hero::after {
+    content: "";
+    position: absolute;
+    inset: 18px 22px auto auto;
+    width: 210px;
+    height: 80px;
+    border-top: 1px solid rgba(20, 184, 166, 0.38);
+    border-right: 1px solid rgba(37, 99, 235, 0.32);
+    transform: skewX(-18deg);
+}
+
+.cc-hero-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: end;
+}
+
+.cc-hero h1 {
+    margin: 0 0 8px 0;
+    color: #f8fafc;
+    font-size: 3.4rem;
+    line-height: 0.95;
+}
+
+.cc-hero p {
+    max-width: 760px;
+    margin: 0;
+    color: #cbd5e1;
+    font-size: 1.02rem;
+    line-height: 1.55;
+}
+
+.cc-console-mark {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 1px solid rgba(20, 184, 166, 0.45);
+    display: grid;
+    place-items: center;
+    color: #99f6e4;
+    font-weight: 800;
+    box-shadow: inset 0 0 0 10px rgba(20, 184, 166, 0.08), 0 14px 30px rgba(0,0,0,0.2);
+}
+
+.cc-chip-row {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.cc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 11px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.48);
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.cc-chip::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--cc-teal-500);
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
+}
+
+.cc-sidebar-brand {
+    padding: 10px 0 6px 0;
+}
+
+.cc-sidebar-brand strong {
+    display: block;
+    font-size: 1.28rem;
+    letter-spacing: 0;
+}
+
+.cc-sidebar-brand span {
+    display: block;
+    margin-top: 4px;
+    color: #94a3b8 !important;
+    font-size: 0.82rem;
+}
+
+.cc-sidebar-route {
+    margin-top: 18px;
+    padding-left: 12px;
+    border-left: 1px solid rgba(20, 184, 166, 0.32);
+}
+
+.cc-sidebar-step {
+    margin: 0 0 16px 0;
+}
+
+.cc-sidebar-step strong {
+    display: block;
+    font-size: 0.85rem;
+}
+
+.cc-sidebar-step span {
+    display: block;
+    color: #94a3b8 !important;
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.cc-page-signal {
+    border-left: 4px solid var(--cc-teal-500);
+    padding: 10px 14px;
+    margin: 4px 0 18px 0;
+    border-radius: 8px;
+    background: rgba(240, 253, 250, 0.78);
+    color: #0f766e;
+    font-weight: 700;
+    font-size: 0.9rem;
 }
 
 .cc-kicker {
@@ -76,10 +230,10 @@ h2, h3 {
 }
 
 .cc-card {
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    border: 1px solid var(--cc-border);
     border-radius: 8px;
     padding: 18px;
-    background: rgba(255, 255, 255, 0.82);
+    background: var(--cc-surface);
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
@@ -138,26 +292,78 @@ h2, h3 {
 }
 
 div[data-testid="stMetric"] {
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 8px;
-    padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.86);
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+    border: 1px solid rgba(20, 184, 166, 0.16);
+    border-radius: 10px;
+    padding: 16px 18px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+}
+
+div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+    color: var(--cc-muted);
+    font-weight: 700;
+}
+
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: var(--cc-navy-900);
+    font-weight: 800;
 }
 
 .stButton > button,
 .stDownloadButton > button {
-    border-radius: 12px;
+    border-radius: 10px;
     border: 1px solid rgba(15, 118, 110, 0.18);
     font-weight: 700;
+    min-height: 2.65rem;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
 .stButton > button[kind="primary"] {
-    background: linear-gradient(90deg, #0f766e, #2563eb);
+    background: linear-gradient(90deg, var(--cc-teal-600), var(--cc-blue-500));
+    border: 0;
 }
 
-textarea, input {
-    border-radius: 12px !important;
+.stRadio div[role="radiogroup"] {
+    gap: 8px;
+}
+
+.stRadio label {
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 999px;
+    padding: 5px 10px;
+}
+
+textarea,
+input,
+[data-baseweb="select"] > div {
+    border-radius: 10px !important;
+    border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+[data-testid="stDataFrame"] {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.04);
+}
+
+div[data-testid="stExpander"] {
+    border-radius: 10px;
+    border-color: rgba(15, 23, 42, 0.1);
+    background: rgba(255, 255, 255, 0.72);
+}
+
+@media (max-width: 760px) {
+    .cc-hero-grid {
+        grid-template-columns: 1fr;
+    }
+    .cc-hero h1 {
+        font-size: 2.4rem;
+    }
+    .cc-console-mark {
+        display: none;
+    }
 }
 </style>
 """
@@ -322,10 +528,21 @@ def apply_demo_query_params() -> None:
 
 
 def render_sidebar() -> None:
-    st.sidebar.title("CareerCompass")
-    st.sidebar.caption("Career strategy workspace")
-    st.sidebar.divider()
-    st.sidebar.write("Build a profile, compare role gaps, tailor resumes, and practice interviews.")
+    st.sidebar.markdown(
+        """
+        <div class="cc-sidebar-brand">
+            <strong>CareerCompass</strong>
+            <span>Navigation console</span>
+        </div>
+        <div class="cc-sidebar-route">
+            <div class="cc-sidebar-step"><strong>Profile Scan</strong><span>Resume, role, location, coursework</span></div>
+            <div class="cc-sidebar-step"><strong>Market Signal</strong><span>Role evidence and skill demand</span></div>
+            <div class="cc-sidebar-step"><strong>Resume Targeting</strong><span>Skill proof and job-specific drafts</span></div>
+            <div class="cc-sidebar-step"><strong>Interview Prep</strong><span>Scenario practice and answer feedback</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_role_status_panel() -> None:
@@ -395,9 +612,9 @@ def extract_uploaded_resume(uploaded_file) -> tuple[str | None, str]:
 
 
 def render_inputs() -> dict:
-    st.header("Build your career profile")
+    st.header("Build Your Career Profile")
     st.caption(
-        "Paste a resume or upload a local file, then choose the role and hiring-readiness timeline."
+        "Load the source resume, target role, location, timeline, and coursework for the navigation scan."
     )
 
     reset_col, note_col = st.columns([0.35, 0.65])
@@ -546,19 +763,23 @@ def render_progress() -> None:
 
 
 def render_dashboard(analysis: dict) -> None:
-    st.header("Career Strategy Dashboard")
+    st.header("Career Readiness Console")
+    st.markdown(
+        '<div class="cc-page-signal">Live scan of role fit, priority gaps, market demand, and next moves.</div>',
+        unsafe_allow_html=True,
+    )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Role readiness", f"{analysis['match_percentage']}%")
-    c2.metric("Priority gaps", analysis["gap_counts"]["high"])
-    c3.metric("Resume keyword coverage", f"{analysis['keyword_coverage']}%")
-    c4.metric("Interview readiness", analysis["interview_readiness"])
+    c1.metric("Role signal", f"{analysis['match_percentage']}%")
+    c2.metric("Priority alerts", analysis["gap_counts"]["high"])
+    c3.metric("Resume signal", f"{analysis['keyword_coverage']}%")
+    c4.metric("Interview status", analysis["interview_readiness"])
 
-    st.subheader("Recommended next moves")
+    st.subheader("Recommended Next Moves")
     next_actions = pd.DataFrame(analysis["next_actions"])
     st.dataframe(next_actions, use_container_width=True, hide_index=True)
 
-    st.subheader("Market demand summary")
+    st.subheader("Market Demand Signal")
     skills = pd.DataFrame(analysis["market_skills"])
     st.dataframe(skills, use_container_width=True, hide_index=True)
     retrieved_postings = analysis.get("retrieved_job_postings", [])
@@ -576,18 +797,18 @@ def render_dashboard(analysis: dict) -> None:
             ]
             st.dataframe(pd.DataFrame(evidence_rows), use_container_width=True, hide_index=True)
 
-    st.subheader("Skill gap report")
+    st.subheader("Skill Gap Radar")
     gaps = pd.DataFrame(analysis["gap_report"])
     st.dataframe(gaps, use_container_width=True, hide_index=True)
 
-    st.subheader("Suggested certifications and short courses")
+    st.subheader("Suggested Certifications and Short Courses")
     st.dataframe(
         pd.DataFrame(analysis["certification_recommendations"]),
         use_container_width=True,
         hide_index=True,
     )
 
-    st.subheader("Start closing a gap")
+    st.subheader("Start Closing a Gap")
     selected_gap = st.selectbox(
         "Choose a skill gap to work on",
         options=[gap["Skill"] for gap in analysis["gap_report"]],
@@ -646,7 +867,11 @@ def render_dashboard(analysis: dict) -> None:
 
 
 def render_roadmap(analysis: dict) -> None:
-    st.header("30/60/90-Day Learning Roadmap")
+    st.header("90-Day Route Plan")
+    st.markdown(
+        '<div class="cc-page-signal">Milestones for turning gaps into visible career proof.</div>',
+        unsafe_allow_html=True,
+    )
     cols = st.columns(3)
     for col, phase in zip(cols, analysis["learning_roadmap"]):
         with col:
@@ -656,23 +881,23 @@ def render_roadmap(analysis: dict) -> None:
                 st.checkbox(task, value=False, key=f"{phase['period']}-{task}")
             st.caption(f"Resource relevance: {phase['resource_relevance']}/5")
 
-    st.subheader("Portfolio proof ideas")
+    st.subheader("Portfolio Proof Waypoints")
     for item in analysis["portfolio_ideas"]:
         st.checkbox(item, value=False, key=f"portfolio-{item}")
 
 
 def render_resume(analysis: dict) -> None:
-    st.header("Resume Optimization")
-    st.caption("Reuse the saved profile resume, paste a job post, generate a targeted draft, then export.")
+    st.header("Resume Targeting Console")
+    st.caption("Reuse the saved profile resume, paste a job post, map skill signals, generate a targeted draft, then export.")
 
-    st.subheader("Resume keyword targets")
+    st.subheader("Resume Keyword Targets")
     st.write(
         "These are the words and phrases CareerCompass thinks should be represented somewhere in the resume."
     )
     keyword_df = pd.DataFrame(analysis["keyword_targets"])
     st.dataframe(keyword_df, use_container_width=True, hide_index=True)
 
-    st.subheader("Resume evidence reminders")
+    st.subheader("Resume Evidence Reminders")
     st.caption("Use these while reviewing the tailored draft for this job post.")
     for item in analysis["resume_checklist"]:
         st.checkbox(item, value=False, key=f"resume-check-{item}")
@@ -682,7 +907,7 @@ def render_resume(analysis: dict) -> None:
         st.session_state.resume_profile_resume_editor = saved_resume
         st.session_state.resume_profile_source_snapshot = saved_resume
 
-    st.subheader("Tailor your resume to a specific job")
+    st.subheader("Tailor Your Resume to a Specific Job")
     st.caption(
         "Paste the job description here. We'll use your saved resume and the job requirements to rebuild a targeted version of your resume."
     )
@@ -718,11 +943,11 @@ def render_resume(analysis: dict) -> None:
         ),
         job_post=job_post,
     )
-    st.subheader("Skill Evidence Map")
+    st.subheader("Signal Map")
     st.caption("Use this to see what CareerCompass found before generating the tailored resume.")
     st.dataframe(pd.DataFrame(evidence_map), use_container_width=True, hide_index=True)
 
-    st.subheader("Choose a resume format")
+    st.subheader("Choose a Resume Format")
     st.write("The selected format will restructure your saved resume for the pasted job post, not just apply a generic template.")
     format_options = [
         "Use my existing resume structure",
@@ -771,7 +996,7 @@ def render_resume(analysis: dict) -> None:
             st.session_state.resume_draft = preview
             st.success("Structure preview copied into the editable resume draft.")
 
-    st.subheader("Select improvements to apply")
+    st.subheader("Select Improvements to Apply")
     selected_suggestions = []
 
     for index, suggestion in enumerate(analysis["resume_recommendations"], start=1):
@@ -808,7 +1033,7 @@ def render_resume(analysis: dict) -> None:
                 custom_template,
             )
 
-    st.subheader("Generate job-specific resume")
+    st.subheader("Generate Job-Specific Resume")
     generate_col, clear_col = st.columns([1, 1])
     with generate_col:
         if st.button("Generate tailored resume", type="primary"):
@@ -844,7 +1069,7 @@ def render_resume(analysis: dict) -> None:
     if not st.session_state.resume_draft:
         st.session_state.resume_draft = build_resume_draft(analysis, template_name, custom_template)
 
-    st.subheader("Editable resume draft")
+    st.subheader("Editable Resume Draft")
     st.session_state.resume_draft = st.text_area(
         "Draft resume",
         value=st.session_state.resume_draft,
@@ -870,7 +1095,7 @@ def render_resume(analysis: dict) -> None:
 
 
 def render_interview(analysis: dict) -> None:
-    st.header("Interview Simulation")
+    st.header("Interview Prep Console")
     st.caption(
         "Practice against generated questions, a company-specific scenario, or a scenario the student already received."
     )
@@ -941,7 +1166,7 @@ def _question_picker_label(question: dict) -> str:
 
 
 def render_report(analysis: dict) -> None:
-    st.header("Final Strategy Report")
+    st.header("Final Navigation Brief")
     st.text_area("Copyable report", value=analysis["final_strategy_report"], height=360)
 
     st.warning(
@@ -978,9 +1203,19 @@ def main() -> None:
     st.markdown(
         """
         <div class="cc-hero">
-            <div class="cc-kicker">Bay Area career intelligence</div>
-            <h1>CareerCompass</h1>
-            <p>Personalized career strategy and skill development through coordinated AI agents.</p>
+            <div class="cc-hero-grid">
+                <div>
+                    <h1>CareerCompass</h1>
+                    <p>Navigate role fit, skill gaps, resume evidence, and interview readiness from one focused career console.</p>
+                </div>
+                <div class="cc-console-mark">CC</div>
+            </div>
+            <div class="cc-chip-row">
+                <span class="cc-chip">Profile scan ready</span>
+                <span class="cc-chip">Market signal mapped</span>
+                <span class="cc-chip">Resume targeting active</span>
+                <span class="cc-chip">Interview route prepared</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1005,7 +1240,7 @@ def main() -> None:
             "Final Report",
         ]
         active_view = st.radio(
-            "CareerCompass workspace",
+            "CareerCompass navigation",
             options=views,
             horizontal=True,
             key="active_view",
