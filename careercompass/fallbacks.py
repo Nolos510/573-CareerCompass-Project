@@ -26,6 +26,18 @@ SKILL_ALIASES = {
     "user acceptance testing": ["uat", "user acceptance", "testing", "acceptance testing"],
     "business process": ["business process", "process"],
     "experimentation": ["experimentation", "experiment", "a/b", "ab test", "a/b testing"],
+    "A/B testing": ["a/b", "ab test", "a/b testing", "experiment", "experimentation"],
+    "campaign strategy": ["campaign", "campaigns", "channel strategy", "marketing channels"],
+    "conversion optimization": ["conversion", "funnel", "activation", "retention"],
+    "customer insight": ["customer insight", "customer research", "persona", "audience", "voice of customer"],
+    "Figma": ["figma", "wireframe", "wireframes", "prototype"],
+    "launch planning": ["launch", "go-to-market", "gtm", "release planning"],
+    "positioning": ["positioning", "messaging", "value proposition"],
+    "product design": ["product design", "interaction design", "visual design"],
+    "Product marketing": ["product marketing", "go-to-market", "launch", "positioning"],
+    "prototyping": ["prototype", "prototyping", "mockup", "wireframe"],
+    "usability testing": ["usability", "user testing", "usability test"],
+    "user research": ["user research", "ux research", "interviews", "survey", "journey map"],
     "scope": ["scope", "scoping"],
     "Scrum": ["scrum", "sprint", "backlog", "standup"],
     "timeline management": ["timeline", "schedule"],
@@ -47,8 +59,12 @@ STRONG_EVIDENCE_TERMS = [
     "led",
     "managed",
     "measured",
+    "launched",
     "presented",
+    "prioritized",
+    "prototyped",
     "queried",
+    "researched",
     "reduced",
     "reported",
     "resolved",
@@ -289,6 +305,44 @@ def roadmap_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def resume_recommendation_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    profile_label = profile["label"].lower()
+    if "marketing" in profile_label:
+        return [
+            {
+                "before": "Led a team project documenting recommendations to stakeholders.",
+                "after": (
+                    "Developed a product-positioning brief by identifying the target customer, clarifying the value proposition, "
+                    "and defining launch metrics for stakeholder review."
+                ),
+                "keywords_added": ["product positioning", "target customer", "launch metrics"],
+            },
+            {
+                "before": "Worked on a class project and presented recommendations.",
+                "after": (
+                    "Created a campaign plan with audience, channel, messaging, and success metrics to support a product launch."
+                ),
+                "keywords_added": ["campaign plan", "audience", "messaging", "success metrics"],
+            },
+        ]
+
+    if "ux" in profile_label or "design" in profile_label:
+        return [
+            {
+                "before": "Completed a project and presented recommendations.",
+                "after": (
+                    "Synthesized user feedback into design priorities, then prototyped a revised flow and explained the usability tradeoffs."
+                ),
+                "keywords_added": ["user feedback", "design priorities", "prototyped", "usability"],
+            },
+            {
+                "before": "Worked with stakeholders on project requirements.",
+                "after": (
+                    "Translated stakeholder and user needs into a Figma prototype with clear interaction decisions and review-ready annotations."
+                ),
+                "keywords_added": ["stakeholder needs", "Figma prototype", "interaction decisions"],
+            },
+        ]
+
     if "Project Manager" in profile["label"] and "Business Analyst" not in profile["label"]:
         return [
             {

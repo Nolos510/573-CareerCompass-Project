@@ -1,12 +1,17 @@
 import unittest
 
 from app import (
+    build_tailoring_change_summary,
     build_skill_evidence_map,
     build_tailored_resume_draft,
     derive_job_post_keywords,
     extract_resume_education,
     extract_resume_identity,
     resume_format_template_key,
+    resume_format_metadata,
+    validate_interview_answer,
+    validate_job_post_for_tailoring,
+    validate_resume_for_analysis,
 )
 from careercompass.agents import run_career_analysis
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
@@ -104,6 +109,65 @@ class ResumeTailoringUiTest(unittest.TestCase):
     def test_resume_format_labels_map_to_template_keys(self):
         self.assertEqual(resume_format_template_key("Project-forward resume"), "Project-forward")
         self.assertEqual(resume_format_template_key("Custom student-supplied template"), "Use my own template")
+
+    def test_empty_resume_validation_blocks_analysis_helper_logic(self):
+        self.assertEqual(validate_resume_for_analysis(""), "Add a resume before running analysis.")
+        self.assertEqual(validate_resume_for_analysis("Actual resume text"), "")
+
+    def test_empty_interview_answer_validation_blocks_evaluation_helper_logic(self):
+        self.assertEqual(
+            validate_interview_answer("   "),
+            "Write or paste an answer before requesting feedback.",
+        )
+        self.assertEqual(validate_interview_answer("I used STAR structure."), "")
+
+    def test_job_post_validation_requires_full_posting(self):
+        self.assertIn("Paste the job description", validate_job_post_for_tailoring(""))
+        self.assertIn("fuller job posting", validate_job_post_for_tailoring("Product Marketing Associate"))
+
+    def test_resume_format_metadata_includes_tradeoffs(self):
+        metadata = resume_format_metadata("Project-forward resume", self.analysis, "Project-forward")
+
+        self.assertIn("best_for", metadata)
+        self.assertIn("use_when", metadata)
+        self.assertIn("avoid_when", metadata)
+        self.assertTrue(metadata["sections"])
+
+    def test_tailored_resume_flags_unsupported_keywords_instead_of_inventing_claims(self):
+        saved_resume = """
+        Maya Rivera
+        maya@example.com
+
+        EXPERIENCE
+        - Coordinated student club events and wrote weekly member updates.
+
+        EDUCATION
+        State University - B.A. Communications
+        """
+        job_post = """
+        Product Marketing Associate
+        We need product marketing, positioning, customer insight, campaign strategy,
+        conversion optimization, launch planning, and A/B testing experience.
+        """
+        tailored = build_tailored_resume_draft(
+            analysis=self.analysis,
+            saved_resume=saved_resume,
+            job_post=job_post,
+            format_name="Experience-forward resume",
+        )
+        changes = build_tailoring_change_summary(
+            saved_resume=saved_resume,
+            analysis=self.analysis,
+            job_post=job_post,
+        )
+
+        self.assertIn("Maya Rivera", tailored)
+        self.assertIn("maya@example.com", tailored)
+        self.assertIn("State University - B.A. Communications", tailored)
+        self.assertIn("NEEDS EVIDENCE BEFORE ADDING", tailored)
+        self.assertIn("A/B testing", tailored)
+        self.assertNotIn("Emphasized A/B testing", tailored)
+        self.assertTrue(any(row["Safe To Add"] == "Needs evidence" for row in changes))
 
 
 if __name__ == "__main__":

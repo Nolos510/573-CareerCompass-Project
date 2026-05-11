@@ -47,6 +47,21 @@ BASE_COURSEWORK_OPTIONS = [
     "Operations Management",
 ]
 
+TEXT_SKILL_ALIASES = {
+    "A/B testing": ["a/b", "ab test", "experiment", "experimentation"],
+    "campaign strategy": ["campaign", "campaigns", "channel", "channels"],
+    "conversion optimization": ["conversion", "funnel", "activation", "retention"],
+    "customer insight": ["customer", "persona", "voice of customer", "audience"],
+    "Figma": ["figma", "wireframe", "wireframes"],
+    "launch planning": ["launch", "go-to-market", "gtm", "release"],
+    "positioning": ["positioning", "messaging", "value proposition"],
+    "product design": ["product design", "interaction design", "visual design"],
+    "Product marketing": ["product marketing", "go-to-market", "launch", "positioning"],
+    "prototyping": ["prototype", "prototyping", "mockup", "mockups"],
+    "usability testing": ["usability", "user testing", "usability testing"],
+    "user research": ["user research", "ux research", "interviews", "survey"],
+}
+
 
 def retrieve_job_postings(
     target_role: str,
@@ -84,6 +99,48 @@ def retrieve_job_postings(
         }
         for score, posting in scored[:limit]
     ]
+
+
+def build_target_job_posting(
+    target_job: dict[str, str] | None,
+    target_role: str,
+    target_location: str,
+) -> dict[str, Any] | None:
+    description = (target_job or {}).get("description", "").strip()
+    if not description:
+        return None
+
+    title = (target_job or {}).get("title", "").strip() or target_role
+    company = (target_job or {}).get("company", "").strip() or "Target company"
+    url = (target_job or {}).get("url", "").strip()
+    skills = extract_skills_from_text(f"{title} {description}")
+    if not skills:
+        skills = ["stakeholder communication", "documentation", "project coordination"]
+
+    posting = {
+        "id": "target-job-posting",
+        "role": title,
+        "company": company,
+        "location": target_location,
+        "date": "User supplied",
+        "skills": skills[:10],
+        "description": description,
+        "url": url,
+        "retrieval_score": 50.0,
+    }
+    return {**posting, "evidence_summary": _evidence_summary(posting)}
+
+
+def extract_skills_from_text(text: str) -> list[str]:
+    normalized = _normalize_text(text)
+    skills = []
+    for skill in [*available_skills(), *TEXT_SKILL_ALIASES.keys()]:
+        aliases = [skill, *TEXT_SKILL_ALIASES.get(skill, [])]
+        if any(_term_in_text(alias, normalized) for alias in aliases):
+            normalized_skill = _normalize_skill(skill)
+            if normalized_skill not in skills:
+                skills.append(normalized_skill)
+    return skills
 
 
 def available_target_roles() -> list[str]:
@@ -196,6 +253,10 @@ def _tokenize(text: str) -> set[str]:
     }
 
 
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower()).strip()
+
+
 def _normalize_skill(skill: str) -> str:
     aliases = {
         "presentation": "stakeholder communication",
@@ -203,6 +264,13 @@ def _normalize_skill(skill: str) -> str:
         "scrum": "Agile",
     }
     return aliases.get(skill.lower(), skill)
+
+
+def _term_in_text(term: str, normalized_text: str) -> bool:
+    normalized_term = _normalize_text(term)
+    if not normalized_term:
+        return False
+    return re.search(rf"(?<![a-z0-9]){re.escape(normalized_term)}(?![a-z0-9])", normalized_text) is not None
 
 
 def _demand_signal(count: int, posting_count: int) -> str:

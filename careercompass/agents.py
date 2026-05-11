@@ -13,7 +13,7 @@ from careercompass.agent_logic import (
     run_resume_optimization_logic,
 )
 from careercompass.fallbacks import assess_skill_evidence
-from careercompass.rag import retrieval_confidence, retrieve_job_postings
+from careercompass.rag import build_target_job_posting, retrieval_confidence, retrieve_job_postings
 from careercompass.state import (
     AgentHandoff,
     AgentName,
@@ -99,6 +99,7 @@ def create_initial_state(inputs: dict) -> AgentState:
         },
         "target_role": inputs["target_role"],
         "target_location": inputs["target_location"],
+        "target_job": _normalize_target_job(inputs.get("target_job")),
         "timeline_days": inputs["timeline_days"],
         "resume_text": inputs.get("resume_text", ""),
         "coursework": inputs.get("coursework", []),
@@ -116,6 +117,16 @@ def create_initial_state(inputs: dict) -> AgentState:
         "completed_agents": [],
         "handoffs": [],
         "errors": [],
+    }
+
+
+def _normalize_target_job(raw_target_job: Any) -> dict[str, str]:
+    raw_target_job = raw_target_job if isinstance(raw_target_job, dict) else {}
+    return {
+        "company": str(raw_target_job.get("company", "")).strip(),
+        "title": str(raw_target_job.get("title", "")).strip(),
+        "url": str(raw_target_job.get("url", "")).strip(),
+        "description": str(raw_target_job.get("description", "")).strip(),
     }
 
 
@@ -212,6 +223,13 @@ def market_demand_node(state: AgentState) -> dict[str, Any]:
         state["target_role"],
         state["target_location"],
     )
+    target_posting = build_target_job_posting(
+        state.get("target_job"),
+        state["target_role"],
+        state["target_location"],
+    )
+    if target_posting:
+        retrieved_job_postings = [target_posting, *retrieved_job_postings]
     state_with_retrieval = {
         **state,
         "retrieved_job_postings": retrieved_job_postings,
@@ -266,10 +284,13 @@ def resume_optimization_node(state: AgentState) -> dict[str, Any]:
 
 def interview_simulation_node(state: AgentState) -> dict[str, Any]:
     profile = _profile_from_state(state)
+    target_job = state.get("target_job", {})
+    company = target_job.get("company") or "Target company"
+    scenario = target_job.get("description") or profile["default_interview_scenario"]
     interview_questions = generate_interview_questions(
         state["target_role"],
-        "Target company",
-        profile["default_interview_scenario"],
+        company,
+        scenario,
     )
     return _agent_update(
         state,
@@ -307,6 +328,7 @@ def synthesis_node(state: AgentState) -> dict[str, Any]:
         "route_plan": state.get("route_plan", []),
         "target_role": state["target_role"],
         "target_location": state["target_location"],
+        "target_job": state.get("target_job", {}),
         "role_label": profile["label"],
         "match_percentage": match_percentage,
         "gap_counts": {"high": high_count},
@@ -539,14 +561,275 @@ def evaluate_interview_answer(question: str, answer: str, rubric_focus: str) -> 
 
 def _role_profile(target_role: str) -> dict:
     role = target_role.lower()
+    wants_product_marketing = any(
+        term in role
+        for term in ["product marketing", "growth marketing", "brand", "campaign", "go-to-market", "marketing"]
+    )
+    wants_ux = any(
+        term in role
+        for term in ["ux", "user experience", "product design", "designer", "design researcher", "ux research"]
+    )
     wants_pm = "project" in role or "program" in role or "manager" in role
     wants_ba = "business analyst" in role or "analyst" in role or "data" in role
 
+    if wants_product_marketing:
+        return _product_marketing_profile(target_role)
+    if wants_ux:
+        return _ux_design_profile(target_role)
     if wants_pm and wants_ba:
         return _hybrid_profile()
     if wants_pm:
         return _project_manager_profile()
     return _business_analyst_profile()
+
+
+def _product_marketing_profile(target_role: str) -> dict:
+    label = target_role.strip() or "Product Marketing Associate"
+    return {
+        "label": label,
+        "match_percentage": 66,
+        "keyword_coverage": 58,
+        "interview_readiness": "Needs launch stories",
+        "skills": [
+            ("Product marketing", "Very high", "Core signal for positioning, launch planning, and product-market storytelling."),
+            ("customer insight", "Very high", "Employers expect evidence that campaigns and messaging start from customer needs."),
+            ("campaign strategy", "High", "Common requirement for channel planning, launch campaigns, and content coordination."),
+            ("positioning", "High", "Important for translating product value into clear audience-facing messaging."),
+            ("A/B testing", "Medium", "Useful for validating messaging, conversion, and growth experiments."),
+        ],
+        "gaps": [
+            ("Product marketing", "Resume should show launch, messaging, or go-to-market proof.", "High", "Add one truthful launch, campaign, or positioning project."),
+            ("customer insight", "Customer research or audience evidence is not yet prominent.", "Medium", "Document one persona, interview, survey, or customer-feedback insight."),
+            ("campaign strategy", "Campaign planning evidence could be sharper.", "Medium", "Create a small campaign brief with audience, channels, and success metrics."),
+        ],
+        "gap_deep_dives": _product_gap_deep_dives(),
+        "roadmap": [
+            (
+                "Days 1-30",
+                "Create a product-marketing proof project tied to a real audience.",
+                [
+                    "Pick one product or local business and define the target customer",
+                    "Write a positioning brief with audience, pain point, message, and channel",
+                    "Add one resume bullet describing the customer insight and deliverable",
+                ],
+                5,
+            ),
+            (
+                "Days 31-60",
+                "Build measurable campaign and launch evidence.",
+                [
+                    "Create a launch checklist with channels, content, owners, and metrics",
+                    "Draft two campaign variants and define an A/B testing plan",
+                    "Package the work as a portfolio case with screenshots and rationale",
+                ],
+                4,
+            ),
+            (
+                "Days 61-90",
+                "Prepare targeted applications and product-marketing interviews.",
+                [
+                    "Tailor resume bullets to customer insight, positioning, launch, and conversion",
+                    "Practice campaign prioritization and metric tradeoff questions",
+                    "Apply to product marketing, growth, and marketing associate roles",
+                ],
+                4,
+            ),
+        ],
+        "technical_question": "How would you decide which launch metrics prove a campaign improved customer behavior?",
+        "technical_rubric": "customer insight, metric choice, experiment design, business impact",
+        "default_interview_scenario": "a product launch needs clearer positioning and a campaign plan for a specific customer segment",
+        "interview_scenarios": {
+            "Launch positioning case": (
+                "A new product feature is launching next month. The team needs a clear customer segment, positioning, "
+                "launch channels, and metrics that show whether the message changed behavior."
+            ),
+            "Campaign performance review": (
+                "A campaign drove traffic but weak conversion. The team needs to understand whether the issue is audience, "
+                "message, landing page, channel mix, or product fit."
+            ),
+            "Customer insight brief": (
+                "Sales and support teams report different customer pain points. The interviewer wants to know how you would "
+                "gather evidence, synthesize themes, and turn them into messaging."
+            ),
+            "Creative and metrics tradeoff": (
+                "A team likes a bold creative concept, but early data suggests a simpler message converts better. The role "
+                "requires balancing creative quality, customer insight, and measurable growth."
+            ),
+        },
+    }
+
+
+def _ux_design_profile(target_role: str) -> dict:
+    label = target_role.strip() or "UX / Product Design"
+    return {
+        "label": label,
+        "match_percentage": 64,
+        "keyword_coverage": 56,
+        "interview_readiness": "Needs design cases",
+        "skills": [
+            ("user research", "Very high", "UX roles expect evidence from interviews, surveys, usability findings, or customer discovery."),
+            ("product design", "Very high", "Employers look for visible design decisions, interaction flows, and problem framing."),
+            ("Figma", "High", "Figma is frequently used to show wireframes, prototypes, and handoff-ready artifacts."),
+            ("prototyping", "High", "Prototypes make design thinking visible and testable."),
+            ("usability testing", "Medium", "Testing evidence helps prove designs were evaluated with users."),
+        ],
+        "gaps": [
+            ("user research", "Resume should name user evidence, not only design interest.", "High", "Create one user research brief with findings and design implications."),
+            ("Figma", "No named Figma or prototyping artifact is visible yet.", "Medium", "Build a small clickable prototype and summarize the design decision."),
+            ("usability testing", "Testing evidence could be stronger.", "Medium", "Run a lightweight usability test and document what changed."),
+        ],
+        "gap_deep_dives": _ux_gap_deep_dives(),
+        "roadmap": [
+            (
+                "Days 1-30",
+                "Turn one design problem into a portfolio-ready research story.",
+                [
+                    "Choose a product flow and write the user problem",
+                    "Collect lightweight user feedback or competitive observations",
+                    "Create a short findings-to-design-decisions summary",
+                ],
+                5,
+            ),
+            (
+                "Days 31-60",
+                "Create a visible prototype and test plan.",
+                [
+                    "Build wireframes or a clickable Figma prototype",
+                    "Run a usability pass with 2-3 participants or heuristic checks",
+                    "Document what changed because of the evidence",
+                ],
+                4,
+            ),
+            (
+                "Days 61-90",
+                "Package the design case for applications and interviews.",
+                [
+                    "Rewrite resume bullets around research, design decisions, and outcomes",
+                    "Practice portfolio walkthroughs and critique responses",
+                    "Apply to UX, product design, and UX research-adjacent roles",
+                ],
+                4,
+            ),
+        ],
+        "technical_question": "How would you validate whether a redesigned onboarding flow actually helped users complete the task?",
+        "technical_rubric": "user problem, research method, prototype quality, testing, iteration",
+        "default_interview_scenario": "a product onboarding flow has low completion and the team needs research-backed design changes",
+        "interview_scenarios": {
+            "Onboarding redesign": (
+                "A product onboarding flow has low completion. The team needs to understand user friction, redesign the "
+                "flow, and explain which evidence would prove the new design is better."
+            ),
+            "Usability test synthesis": (
+                "A usability test produced conflicting feedback. The interviewer wants to know how you would prioritize "
+                "issues, identify themes, and decide what to change first."
+            ),
+            "Stakeholder design critique": (
+                "Product, engineering, and marketing disagree on the best design direction. The role needs a clear rationale "
+                "that balances user needs, feasibility, and business goals."
+            ),
+        },
+    }
+
+
+def _product_gap_deep_dives() -> dict[str, Any]:
+    return {
+        "Product marketing": {
+            "why_it_matters": "Product marketing roles need proof that you can connect audience insight to launch and messaging decisions.",
+            "starter_business_cases": [
+                "Write a launch brief for a small business product or app feature.",
+                "Create a positioning comparison for three competitors.",
+                "Draft a customer segment and messaging plan for a new feature.",
+            ],
+            "first_steps": [
+                "Pick one target customer and describe their pain point.",
+                "Write a one-page positioning brief.",
+                "Define launch channels and success metrics.",
+                "Turn the brief into one resume bullet and one interview story.",
+            ],
+            "search_terms": ["product marketing launch brief example", "positioning statement template", "go-to-market portfolio project"],
+            "resume_proof": "Add a bullet naming the customer segment, positioning work, launch deliverable, and metric.",
+        },
+        "customer insight": {
+            "why_it_matters": "Customer insight keeps marketing claims grounded in evidence instead of guesses.",
+            "starter_business_cases": [
+                "Summarize five customer reviews into pain-point themes.",
+                "Interview two users and create a persona snapshot.",
+                "Compare support tickets against landing-page messaging.",
+            ],
+            "first_steps": [
+                "Choose a small customer data source such as reviews, interviews, or surveys.",
+                "Group feedback into 3-4 themes.",
+                "Connect each theme to a messaging or product recommendation.",
+            ],
+            "search_terms": ["customer insight brief example", "voice of customer analysis", "product marketing persona template"],
+            "resume_proof": "Add a bullet showing how customer evidence shaped messaging, content, or launch priorities.",
+        },
+        "campaign strategy": {
+            "why_it_matters": "Campaign planning shows you can move from idea to audience, channel, timeline, and measurement.",
+            "starter_business_cases": [
+                "Plan a two-week campaign for a product feature.",
+                "Create three channel-specific messages for one audience.",
+                "Define metrics for a launch email, landing page, and social post.",
+            ],
+            "first_steps": [
+                "Choose a campaign objective and target segment.",
+                "Map channels, content, owner, timeline, and success metric.",
+                "Write one result-oriented resume bullet around the plan.",
+            ],
+            "search_terms": ["campaign brief template", "product launch campaign example", "marketing metrics beginner guide"],
+            "resume_proof": "Add a bullet naming campaign objective, channels, audience, and measurement plan.",
+        },
+    }
+
+
+def _ux_gap_deep_dives() -> dict[str, Any]:
+    return {
+        "user research": {
+            "why_it_matters": "UX roles need evidence that design choices came from user problems and observed behavior.",
+            "starter_business_cases": [
+                "Interview users about a confusing onboarding or checkout flow.",
+                "Analyze app reviews to identify usability pain points.",
+                "Create a journey map for a student service or small business flow.",
+            ],
+            "first_steps": [
+                "Write the user problem and research question.",
+                "Collect 3-5 observations from interviews, reviews, or usability notes.",
+                "Summarize findings and connect them to design decisions.",
+            ],
+            "search_terms": ["UX research brief example", "journey map portfolio project", "user interview synthesis template"],
+            "resume_proof": "Add a bullet naming the research method, insight, design implication, and outcome.",
+        },
+        "Figma": {
+            "why_it_matters": "Figma artifacts help employers inspect your design process and handoff readiness.",
+            "starter_business_cases": [
+                "Redesign one form or dashboard flow in Figma.",
+                "Create a clickable prototype for an onboarding improvement.",
+                "Document before/after design decisions in a portfolio case.",
+            ],
+            "first_steps": [
+                "Choose one user flow and sketch the current problem.",
+                "Build low- and mid-fidelity screens in Figma.",
+                "Annotate key design decisions and accessibility considerations.",
+            ],
+            "search_terms": ["Figma UX portfolio project", "clickable prototype beginner", "UX case study Figma example"],
+            "resume_proof": "Add a bullet naming Figma, the flow you prototyped, and the user problem addressed.",
+        },
+        "usability testing": {
+            "why_it_matters": "Testing evidence shows you can improve a design based on feedback instead of preference.",
+            "starter_business_cases": [
+                "Run a 5-task usability test on a prototype.",
+                "Compare task completion before and after a redesign.",
+                "Summarize severity and priority for observed usability issues.",
+            ],
+            "first_steps": [
+                "Define 3-5 tasks and success criteria.",
+                "Observe users or run a heuristic pass.",
+                "Document issues, changes made, and expected impact.",
+            ],
+            "search_terms": ["usability testing script example", "UX issue severity scale", "prototype testing portfolio case"],
+            "resume_proof": "Add a bullet showing test method, finding, design change, and user impact.",
+        },
+    }
 
 
 def _business_analyst_profile() -> dict:
@@ -1200,6 +1483,23 @@ def _resume_checklist(profile: dict, market_skills: list[dict] | None = None) ->
 
 
 def _certification_recommendations(profile: dict) -> list[dict]:
+    profile_label = profile["label"].lower()
+    if "marketing" in profile_label:
+        return [
+            {"Area": "Product marketing", "Recommendation": "Product Marketing Alliance Core certification or free PMM fundamentals", "Priority": "High", "Why": "Builds vocabulary for positioning, launch, and GTM interviews."},
+            {"Area": "Customer insight", "Recommendation": "HubSpot customer research and buyer persona modules", "Priority": "High", "Why": "Supports audience and persona evidence."},
+            {"Area": "Growth", "Recommendation": "Google Analytics or experimentation basics", "Priority": "Medium", "Why": "Helps connect campaigns to conversion and behavior metrics."},
+            {"Area": "Portfolio", "Recommendation": "Create one launch brief and campaign case study", "Priority": "High", "Why": "Employers need visible proof of launch thinking."},
+        ]
+
+    if "ux" in profile_label or "design" in profile_label:
+        return [
+            {"Area": "UX research", "Recommendation": "Google UX Design Certificate research and testing modules", "Priority": "High", "Why": "Provides structured evidence for research, prototypes, and testing."},
+            {"Area": "Figma", "Recommendation": "Figma Learn: prototyping and design systems", "Priority": "High", "Why": "Supports portfolio-ready design artifacts."},
+            {"Area": "Accessibility", "Recommendation": "Deque University free accessibility basics or WCAG intro", "Priority": "Medium", "Why": "Adds practical design quality language."},
+            {"Area": "Portfolio", "Recommendation": "Create one UX case study with research, prototype, and testing notes", "Priority": "High", "Why": "Hiring teams need a walkthrough-ready project."},
+        ]
+
     if "Project Manager" in profile["label"] and "Business Analyst" not in profile["label"]:
         return [
             {"Area": "Project management", "Recommendation": "Google Project Management Certificate", "Priority": "High", "Why": "Beginner-friendly PM proof for entry-level roles."},
@@ -1225,6 +1525,21 @@ def _certification_recommendations(profile: dict) -> list[dict]:
 
 
 def _portfolio_ideas(profile: dict) -> list[str]:
+    profile_label = profile["label"].lower()
+    if "marketing" in profile_label:
+        return [
+            "Create a product launch brief with audience, positioning, channels, and metrics.",
+            "Build a campaign plan with two message variants and an experiment hypothesis.",
+            "Write a one-page customer insight summary from reviews, interviews, or survey data.",
+        ]
+
+    if "ux" in profile_label or "design" in profile_label:
+        return [
+            "Create a UX case study showing problem, research, prototype, and iteration.",
+            "Build a clickable Figma prototype for one improved user flow.",
+            "Run a lightweight usability test and document before/after design changes.",
+        ]
+
     if "Project Manager" in profile["label"] and "Business Analyst" not in profile["label"]:
         return [
             "Create a sample project charter with scope, timeline, stakeholders, and risks.",
@@ -1290,6 +1605,12 @@ def _synthesis_node(
 ) -> str:
     role = inputs["target_role"]
     location = inputs["target_location"]
+    target_job = inputs.get("target_job", {})
+    target_job_label = ""
+    if target_job.get("title") or target_job.get("company"):
+        target_job_label = f"\n        Target job: {target_job.get('title') or role}"
+        if target_job.get("company"):
+            target_job_label += f" at {target_job['company']}"
     timeline = inputs["timeline_days"]
     readiness = _match_percentage(
         _keyword_coverage(
@@ -1315,6 +1636,7 @@ def _synthesis_node(
         CareerCompass Strategy Report
 
         Target: {role} in {location}
+        {target_job_label}
         Timeline: {timeline} days until target hire date
         Estimated readiness: {readiness} percent match
 
