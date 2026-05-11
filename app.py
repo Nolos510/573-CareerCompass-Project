@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import sys
 import time
+from html import escape
 from io import BytesIO
 from pathlib import Path
 
@@ -84,32 +85,57 @@ p, .stCaptionContainer {
     overflow: hidden;
     border: 1px solid rgba(20, 184, 166, 0.2);
     border-radius: 16px;
-    padding: 26px 28px;
+    padding: 28px 30px 30px 30px;
     margin: 8px 0 22px 0;
     background:
-        linear-gradient(135deg, rgba(7, 17, 31, 0.97), rgba(13, 37, 58, 0.96) 60%, rgba(15, 118, 110, 0.92)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 48px);
+        radial-gradient(circle at 86% 32%, rgba(20, 184, 166, 0.34), transparent 28%),
+        radial-gradient(circle at 70% 8%, rgba(37, 99, 235, 0.16), transparent 24%),
+        linear-gradient(135deg, rgba(7, 17, 31, 0.98), rgba(13, 37, 58, 0.97) 58%, rgba(15, 76, 84, 0.94));
     box-shadow: 0 22px 55px rgba(15, 23, 42, 0.18);
+}
+
+.cc-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+        radial-gradient(circle at 76% 58%, transparent 0 18px, rgba(20, 184, 166, 0.34) 19px, transparent 21px);
+    background-size: 52px 52px, 52px 52px, auto;
+    opacity: 0.72;
+    pointer-events: none;
 }
 
 .cc-hero::after {
     content: "";
     position: absolute;
-    inset: 18px 22px auto auto;
-    width: 210px;
-    height: 80px;
-    border-top: 1px solid rgba(20, 184, 166, 0.38);
-    border-right: 1px solid rgba(37, 99, 235, 0.32);
-    transform: skewX(-18deg);
+    inset: 24px 22px auto auto;
+    width: 320px;
+    height: 150px;
+    border-top: 1px dashed rgba(125, 211, 252, 0.36);
+    border-right: 1px dashed rgba(20, 184, 166, 0.34);
+    border-radius: 0 28px 0 0;
+    transform: skewX(-14deg);
+    pointer-events: none;
 }
 
 .cc-hero-grid {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 24px;
     align-items: end;
+}
+
+.cc-hero-kicker {
+    color: #99f6e4;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
 }
 
 .cc-hero h1 {
@@ -127,21 +153,95 @@ p, .stCaptionContainer {
     line-height: 1.55;
 }
 
-.cc-console-mark {
-    width: 72px;
-    height: 72px;
+.cc-compass-mark {
+    position: relative;
+    width: 92px;
+    height: 92px;
     border-radius: 50%;
-    border: 1px solid rgba(20, 184, 166, 0.45);
+    border: 1px solid rgba(20, 184, 166, 0.46);
     display: grid;
     place-items: center;
-    color: #99f6e4;
+    background: rgba(15, 23, 42, 0.28);
+    box-shadow:
+        inset 0 0 0 12px rgba(20, 184, 166, 0.08),
+        inset 0 0 0 32px rgba(255, 255, 255, 0.02),
+        0 18px 34px rgba(0, 0, 0, 0.22);
+}
+
+.cc-compass-mark::before {
+    content: "";
+    position: absolute;
+    inset: 18px;
+    border: 1px solid rgba(153, 246, 228, 0.42);
+    border-radius: 50%;
+    background:
+        linear-gradient(90deg, transparent 49%, rgba(226, 232, 240, 0.45) 49% 51%, transparent 51%),
+        linear-gradient(0deg, transparent 49%, rgba(226, 232, 240, 0.45) 49% 51%, transparent 51%);
+}
+
+.cc-compass-mark::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 16px;
+    height: 58px;
+    background: linear-gradient(180deg, #f59e0b 0 46%, #e2e8f0 48% 100%);
+    clip-path: polygon(50% 0, 100% 46%, 59% 50%, 50% 100%, 41% 50%, 0 46%);
+    transform: translate(-50%, -50%) rotate(38deg);
+    filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.28));
+}
+
+.cc-hero-metrics {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.cc-hero-metric {
+    min-height: 112px;
+    border: 1px solid rgba(226, 232, 240, 0.72);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 16px 34px rgba(2, 6, 23, 0.14);
+}
+
+.cc-hero-metric span {
+    display: block;
+    color: #475569;
+    font-size: 0.75rem;
     font-weight: 800;
-    box-shadow: inset 0 0 0 10px rgba(20, 184, 166, 0.08), 0 14px 30px rgba(0,0,0,0.2);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.cc-hero-metric strong {
+    display: block;
+    color: #0b1628;
+    font-size: 1.72rem;
+    line-height: 1.1;
+}
+
+.cc-hero-metric em {
+    display: block;
+    color: #0f766e;
+    font-size: 0.78rem;
+    font-style: normal;
+    font-weight: 800;
+    margin-top: 7px;
+}
+
+.cc-hero-metric.is-alert em {
+    color: #b45309;
 }
 
 .cc-chip-row {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -171,7 +271,47 @@ p, .stCaptionContainer {
 }
 
 .cc-sidebar-brand {
-    padding: 10px 0 6px 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0 8px 0;
+}
+
+.cc-sidebar-compass {
+    position: relative;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid rgba(153, 246, 228, 0.52);
+    box-shadow: inset 0 0 0 7px rgba(20, 184, 166, 0.08);
+}
+
+.cc-sidebar-compass::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 1px solid rgba(203, 213, 225, 0.44);
+    border-radius: 50%;
+    background:
+        linear-gradient(90deg, transparent 48%, rgba(226, 232, 240, 0.55) 48% 52%, transparent 52%),
+        linear-gradient(0deg, transparent 48%, rgba(226, 232, 240, 0.55) 48% 52%, transparent 52%);
+}
+
+.cc-sidebar-compass::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 24px;
+    background: linear-gradient(180deg, #f59e0b 0 46%, #e2e8f0 48% 100%);
+    clip-path: polygon(50% 0, 100% 46%, 58% 50%, 50% 100%, 42% 50%, 0 46%);
+    transform: translate(-50%, -50%) rotate(38deg);
+}
+
+.cc-sidebar-brand div:last-child {
+    min-width: 0;
 }
 
 .cc-sidebar-brand strong {
@@ -187,8 +327,17 @@ p, .stCaptionContainer {
     font-size: 0.82rem;
 }
 
+.cc-sidebar-label {
+    margin: 22px 0 12px 0;
+    color: #67e8f9 !important;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 .cc-sidebar-route {
-    margin-top: 18px;
+    margin-top: 0;
     padding-left: 12px;
     border-left: 1px solid rgba(20, 184, 166, 0.32);
 }
@@ -289,6 +438,9 @@ p, .stCaptionContainer {
     .cc-status-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .cc-hero-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 div[data-testid="stMetric"] {
@@ -313,14 +465,39 @@ div[data-testid="stMetric"] [data-testid="stMetricValue"] {
 .stDownloadButton > button {
     border-radius: 10px;
     border: 1px solid rgba(15, 118, 110, 0.18);
+    color: #0f172a !important;
     font-weight: 700;
     min-height: 2.65rem;
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
+.stButton > button p,
+.stDownloadButton > button p {
+    color: inherit !important;
+}
+
 .stButton > button[kind="primary"] {
     background: linear-gradient(90deg, var(--cc-teal-600), var(--cc-blue-500));
     border: 0;
+    color: #ffffff !important;
+    text-shadow: 0 1px 1px rgba(15, 23, 42, 0.24);
+}
+
+.stButton > button[kind="primary"] *,
+.stButton > button[kind="primary"] p {
+    color: #ffffff !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(90deg, #0d9488, #1d4ed8);
+    border: 0;
+    color: #ffffff !important;
+}
+
+.stButton > button[kind="primary"]:disabled,
+.stButton > button[kind="primary"]:disabled * {
+    color: rgba(255, 255, 255, 0.72) !important;
+    opacity: 1;
 }
 
 .stRadio div[role="radiogroup"] {
@@ -358,10 +535,13 @@ div[data-testid="stExpander"] {
     .cc-hero-grid {
         grid-template-columns: 1fr;
     }
+    .cc-hero-metrics {
+        grid-template-columns: 1fr;
+    }
     .cc-hero h1 {
         font-size: 2.4rem;
     }
-    .cc-console-mark {
+    .cc-compass-mark {
         display: none;
     }
 }
@@ -424,7 +604,7 @@ DEMO_VIEW_PARAMS = {
 
 st.set_page_config(
     page_title="CareerCompass",
-    page_icon="CC",
+    page_icon="🧭",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -626,9 +806,13 @@ def render_sidebar() -> None:
     st.sidebar.markdown(
         """
         <div class="cc-sidebar-brand">
-            <strong>CareerCompass</strong>
-            <span>Navigation console</span>
+            <div class="cc-sidebar-compass" aria-hidden="true"></div>
+            <div>
+                <strong>CareerCompass</strong>
+                <span>Navigate your career</span>
+            </div>
         </div>
+        <div class="cc-sidebar-label">Command Center</div>
         <div class="cc-sidebar-route">
             <div class="cc-sidebar-step"><strong>Profile Scan</strong><span>Resume, role, location, coursework</span></div>
             <div class="cc-sidebar-step"><strong>Market Signal</strong><span>Role evidence and skill demand</span></div>
@@ -1396,21 +1580,50 @@ def render_action_checklist(analysis: dict) -> None:
         st.checkbox(item, value=False, key=f"portfolio-{item}")
 
 
-def main() -> None:
-    apply_visual_style()
-    initialize_state()
-    render_sidebar()
-    apply_demo_query_params()
+def render_console_hero() -> None:
+    analysis = st.session_state.get("analysis") or {}
+    market_skills = analysis.get("market_skills", []) if analysis else []
+    top_market_skill = market_skills[0].get("Skill", "Market signal") if market_skills else "Role signal"
+    market_demand = market_skills[0].get("Demand Signal", "Pending") if market_skills else "Pending"
+    gap_count = analysis.get("gap_counts", {}).get("high", 0) if analysis else 0
+    next_action_count = len(analysis.get("next_actions", [])) if analysis else 0
+
+    if analysis:
+        metric_cards = [
+            ("Target Role Fit", f"{analysis.get('match_percentage', '--')}%", analysis.get("role_label", "Role fit mapped"), ""),
+            ("Skill Coverage", f"{analysis.get('keyword_coverage', '--')}%", "Resume evidence scan", ""),
+            ("Market Demand", market_demand, top_market_skill, ""),
+            ("Action Items", str(next_action_count), f"{gap_count} priority alerts", " is-alert"),
+        ]
+    else:
+        metric_cards = [
+            ("Target Role Fit", "Ready", "Load a profile", ""),
+            ("Skill Coverage", "Scan", "Resume evidence", ""),
+            ("Market Demand", "Pending", "Role signal", ""),
+            ("Action Items", "0", "Generated after scan", " is-alert"),
+        ]
+
+    metrics_html = "".join(
+        f"""
+        <div class="cc-hero-metric{css_class}">
+            <span>{escape(str(label))}</span>
+            <strong>{escape(str(value))}</strong>
+            <em>{escape(str(note))}</em>
+        </div>
+        """
+        for label, value, note, css_class in metric_cards
+    )
 
     st.markdown(
-        """
+        f"""
         <div class="cc-hero">
             <div class="cc-hero-grid">
                 <div>
+                    <div class="cc-hero-kicker">Career Navigation Console</div>
                     <h1>CareerCompass</h1>
-                    <p>Navigate role fit, skill gaps, resume evidence, and interview readiness from one focused career console.</p>
+                    <p>Agentic AI career strategy MVP. Navigate roles, close skill gaps, rebuild resume evidence, and prepare interview routes from one command center.</p>
                 </div>
-                <div class="cc-console-mark">CC</div>
+                <div class="cc-compass-mark" aria-hidden="true"></div>
             </div>
             <div class="cc-chip-row">
                 <span class="cc-chip">Profile scan ready</span>
@@ -1418,10 +1631,20 @@ def main() -> None:
                 <span class="cc-chip">Resume targeting active</span>
                 <span class="cc-chip">Interview route prepared</span>
             </div>
+            <div class="cc-hero-metrics">{metrics_html}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def main() -> None:
+    apply_visual_style()
+    initialize_state()
+    render_sidebar()
+    apply_demo_query_params()
+
+    render_console_hero()
 
     inputs = render_inputs()
 
