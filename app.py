@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import time
 from io import BytesIO
@@ -241,8 +242,12 @@ def initialize_state() -> None:
         "coursework_selection": SAMPLE_COURSEWORK,
         "additional_coursework": "",
         "resume_draft": "",
-        "selected_resume_template": "ATS chronological",
+        "selected_resume_template": "Use my existing resume structure",
         "custom_resume_template": "",
+        "resume_job_post": "",
+        "resume_profile_resume_editor": "",
+        "resume_profile_source_snapshot": "",
+        "tailored_resume_history": [],
         "practice_questions": None,
         "interview_evaluation": None,
         "presenter_mode": True,
@@ -266,11 +271,25 @@ def reset_demo_profile() -> None:
     st.session_state.coursework_selection = SAMPLE_COURSEWORK
     st.session_state.additional_coursework = ""
     st.session_state.resume_draft = ""
-    st.session_state.selected_resume_template = "ATS chronological"
+    st.session_state.selected_resume_template = "Use my existing resume structure"
     st.session_state.custom_resume_template = ""
+    st.session_state.resume_job_post = ""
+    st.session_state.resume_profile_resume_editor = SAMPLE_RESUME
+    st.session_state.resume_profile_source_snapshot = SAMPLE_RESUME
+    st.session_state.tailored_resume_history = []
     st.session_state.practice_questions = None
     st.session_state.interview_evaluation = None
     st.session_state.demo_autorun_view = None
+
+
+def update_saved_resume_from_editor() -> None:
+    edited_resume = st.session_state.get("resume_profile_resume_editor", "")
+    st.session_state.resume_text_area = edited_resume
+    st.session_state.resume_profile_source_snapshot = edited_resume.strip()
+
+
+def clear_resume_job_post() -> None:
+    st.session_state.resume_job_post = ""
 
 
 def sample_demo_inputs() -> dict:
@@ -646,7 +665,7 @@ def render_roadmap(analysis: dict) -> None:
 
 def render_resume(analysis: dict) -> None:
     st.header("Resume Optimization")
-    st.caption("Pick keywords, apply suggested improvements, edit the generated draft, then export.")
+    st.caption("Reuse the saved profile resume, paste a job post, generate a targeted draft, then export.")
 
     st.subheader("Resume keyword targets")
     st.write(
@@ -655,17 +674,59 @@ def render_resume(analysis: dict) -> None:
     keyword_df = pd.DataFrame(analysis["keyword_targets"])
     st.dataframe(keyword_df, use_container_width=True, hide_index=True)
 
-    st.subheader("Choose a resume format")
-    template_options = list(analysis["resume_templates"].keys()) + ["Use my own template"]
-    template_name = st.selectbox(
-        "Template",
-        options=template_options,
-        key="selected_resume_template",
-        help="Choose a standard format or paste your own structure.",
+    saved_resume = st.session_state.resume_text_area.strip()
+    if st.session_state.resume_profile_source_snapshot != saved_resume:
+        st.session_state.resume_profile_resume_editor = saved_resume
+        st.session_state.resume_profile_source_snapshot = saved_resume
+
+    st.subheader("Tailor your resume to a specific job")
+    st.caption(
+        "Paste the job description here. We'll use your saved resume and the job requirements to rebuild a targeted version of your resume."
     )
+    with st.expander("Review or replace the saved profile resume"):
+        st.write("This is the resume from the Build your career profile step. Edit it here only if you want to replace the saved version for this application batch.")
+        edited_saved_resume = st.text_area(
+            "Saved profile resume",
+            height=260,
+            key="resume_profile_resume_editor",
+        )
+        if st.button("Update saved profile resume from this editor", on_click=update_saved_resume_from_editor):
+            st.success("Saved profile resume updated for future tailored drafts.")
+
+    job_post = st.text_area(
+        "Paste the job post you're applying to",
+        key="resume_job_post",
+        height=240,
+        placeholder="Paste the full job description, responsibilities, qualifications, and preferred skills here.",
+    )
+    job_keywords = derive_job_post_keywords(job_post, analysis)
+    if job_keywords:
+        st.markdown("**Job-specific keyword signals**")
+        st.dataframe(pd.DataFrame(job_keywords), use_container_width=True, hide_index=True)
+    else:
+        st.info("Paste a job post to add job-specific keywords to the existing CareerCompass resume targets.")
+
+    st.subheader("Choose a resume format")
+    st.write("The selected format will restructure your saved resume for the pasted job post, not just apply a generic template.")
+    format_options = [
+        "Use my existing resume structure",
+        "Project-forward resume",
+        "Experience-forward resume",
+        "Skills matrix resume",
+        "Custom student-supplied template",
+    ]
+    if st.session_state.selected_resume_template not in format_options:
+        st.session_state.selected_resume_template = "Use my existing resume structure"
+    format_name = st.selectbox(
+        "Resume format",
+        options=format_options,
+        key="selected_resume_template",
+        help="Choose how the tailored resume should be organized for this job post.",
+    )
+    template_name = resume_format_template_key(format_name)
 
     custom_template = ""
-    if template_name == "Use my own template":
+    if format_name == "Custom student-supplied template":
         custom_template = st.text_area(
             "Paste your template or section order",
             value=st.session_state.custom_resume_template,
@@ -679,7 +740,7 @@ def render_resume(analysis: dict) -> None:
             "preview": build_resume_draft(analysis, custom_template=custom_template),
         }
     else:
-        template = analysis["resume_templates"][template_name]
+        template = resume_format_metadata(format_name, analysis, template_name)
 
     t1, t2 = st.columns([0.9, 1.1])
     with t1:
@@ -689,10 +750,10 @@ def render_resume(analysis: dict) -> None:
             st.write(f"- {section}")
     with t2:
         preview = build_resume_draft(analysis, template_name, custom_template)
-        st.text_area("Generated template preview", value=preview, height=330)
-        if st.button("Save template preview to editable resume"):
+        st.text_area("Structure preview", value=preview, height=280)
+        if st.button("Save structure preview to editable resume"):
             st.session_state.resume_draft = preview
-            st.success("Template preview copied into the editable resume draft.")
+            st.success("Structure preview copied into the editable resume draft.")
 
     st.subheader("Select improvements to apply")
     selected_suggestions = []
@@ -730,6 +791,39 @@ def render_resume(analysis: dict) -> None:
                 template_name,
                 custom_template,
             )
+
+    st.subheader("Generate job-specific resume")
+    generate_col, clear_col = st.columns([1, 1])
+    with generate_col:
+        if st.button("Generate tailored resume", type="primary"):
+            if not st.session_state.resume_job_post.strip():
+                st.warning("Paste a job post first so CareerCompass can tailor the resume to that application.")
+            else:
+                tailored = build_tailored_resume_draft(
+                    analysis=analysis,
+                    saved_resume=st.session_state.resume_text_area,
+                    job_post=st.session_state.resume_job_post,
+                    format_name=format_name,
+                    custom_template=custom_template,
+                    selected_suggestions=selected_suggestions,
+                )
+                st.session_state.resume_draft = tailored
+                st.session_state.tailored_resume_history = [
+                    {
+                        "Job": infer_job_title(st.session_state.resume_job_post, analysis),
+                        "Format": format_name,
+                        "Keyword count": len(derive_job_post_keywords(st.session_state.resume_job_post, analysis)),
+                    },
+                    *st.session_state.tailored_resume_history[:4],
+                ]
+                st.success("Tailored resume generated. Paste another job post and run again for the next application.")
+    with clear_col:
+        if st.button("Clear job post for next application", on_click=clear_resume_job_post):
+            st.success("Job post cleared. Your saved profile resume is still available.")
+
+    if st.session_state.tailored_resume_history:
+        st.caption("Recent tailored resume runs")
+        st.dataframe(pd.DataFrame(st.session_state.tailored_resume_history), use_container_width=True, hide_index=True)
 
     if not st.session_state.resume_draft:
         st.session_state.resume_draft = build_resume_draft(analysis, template_name, custom_template)
@@ -919,6 +1013,245 @@ def main() -> None:
             render_report(st.session_state.analysis)
         elif active_view == "Action Checklist":
             render_action_checklist(st.session_state.analysis)
+
+
+JOB_KEYWORD_ALIASES = {
+    "SQL": ["sql", "query", "queries", "database"],
+    "Python": ["python", "pandas", "notebook"],
+    "Excel": ["excel", "spreadsheet", "pivot"],
+    "Tableau": ["tableau"],
+    "Power BI": ["power bi", "powerbi"],
+    "Dashboarding": ["dashboard", "dashboards", "reporting", "visualization"],
+    "Data analysis": ["data analysis", "analytics", "insights", "trend"],
+    "A/B testing": ["a/b", "experiment", "experimentation", "conversion"],
+    "Requirements gathering": ["requirements", "user stories", "acceptance criteria"],
+    "Stakeholder communication": ["stakeholder", "cross-functional", "presentation", "executive"],
+    "Project management": ["project management", "timeline", "milestone", "delivery"],
+    "Agile / Scrum": ["agile", "scrum", "sprint", "backlog"],
+    "Risk management": ["risk", "mitigation", "blocker", "dependency"],
+    "Customer insight": ["customer", "user research", "persona", "voice of customer"],
+    "Product marketing": ["product marketing", "launch", "campaign", "positioning"],
+    "Process improvement": ["process improvement", "workflow", "automation", "operational"],
+}
+
+
+def resume_format_template_key(format_name: str) -> str:
+    mapping = {
+        "Use my existing resume structure": "ATS chronological",
+        "Project-forward resume": "Project-forward",
+        "Experience-forward resume": "ATS chronological",
+        "Skills matrix resume": "Skills matrix",
+        "Custom student-supplied template": "Use my own template",
+    }
+    return mapping.get(format_name, "ATS chronological")
+
+
+def resume_format_metadata(format_name: str, analysis: dict, template_name: str) -> dict:
+    if format_name == "Use my existing resume structure":
+        return {
+            "best_for": "Keeping the saved resume familiar while retargeting summary, skills, and bullets to the pasted job post.",
+            "sections": ["Header", "Summary", "Education", "Experience or Projects", "Skills", "Certifications"],
+        }
+    if format_name == "Experience-forward resume":
+        return {
+            "best_for": "Applications where the posting emphasizes ownership, impact, collaboration, or repeated work experience.",
+            "sections": ["Header", "Targeted Summary", "Core Skills", "Experience", "Projects", "Education"],
+        }
+    if template_name in analysis["resume_templates"]:
+        return analysis["resume_templates"][template_name]
+    return {
+        "best_for": "A targeted resume structure for the pasted job post.",
+        "sections": ["Header", "Summary", "Skills", "Projects", "Education"],
+    }
+
+
+def derive_job_post_keywords(job_post: str, analysis: dict, limit: int = 12) -> list[dict]:
+    text = normalize_text(job_post)
+    if not text:
+        return []
+
+    rows = []
+    existing_keywords = [item["Keyword"] for item in analysis.get("keyword_targets", [])]
+    candidate_labels = [*existing_keywords, *JOB_KEYWORD_ALIASES.keys()]
+    seen = set()
+
+    for label in candidate_labels:
+        normalized_label = label.lower()
+        if normalized_label in seen:
+            continue
+        aliases = JOB_KEYWORD_ALIASES.get(label, [label])
+        if any(alias.lower() in text for alias in aliases):
+            rows.append(
+                {
+                    "Keyword": label,
+                    "Source": "Job post",
+                    "How to use it": job_keyword_usage(label),
+                }
+            )
+            seen.add(normalized_label)
+
+    for phrase in extract_repeated_job_phrases(job_post):
+        normalized_phrase = phrase.lower()
+        if normalized_phrase not in seen:
+            rows.append(
+                {
+                    "Keyword": phrase,
+                    "Source": "Repeated phrase",
+                    "How to use it": "Mirror this phrase only where your saved resume has matching evidence.",
+                }
+            )
+            seen.add(normalized_phrase)
+        if len(rows) >= limit:
+            break
+
+    return rows[:limit]
+
+
+def job_keyword_usage(keyword: str) -> str:
+    lower_keyword = keyword.lower()
+    if any(term in lower_keyword for term in ["sql", "python", "excel", "tableau", "power bi", "dashboard"]):
+        return "Name the tool near a project, analysis task, or measurable deliverable."
+    if any(term in lower_keyword for term in ["stakeholder", "requirements", "project", "agile", "risk"]):
+        return "Use it in an impact bullet that shows coordination, decisions, or delivery."
+    if any(term in lower_keyword for term in ["marketing", "customer", "testing", "process"]):
+        return "Connect it to customer insight, experiments, workflow improvement, or launch outcomes."
+    return "Place it in the summary, skills, or a bullet only when supported by your resume evidence."
+
+
+def extract_repeated_job_phrases(job_post: str) -> list[str]:
+    words = re.findall(r"[A-Za-z][A-Za-z+#/.-]{2,}", job_post.lower())
+    stop_words = {
+        "and",
+        "the",
+        "for",
+        "with",
+        "you",
+        "our",
+        "will",
+        "this",
+        "that",
+        "from",
+        "are",
+        "have",
+        "your",
+        "work",
+        "team",
+        "role",
+        "skills",
+        "experience",
+        "ability",
+    }
+    counts = {}
+    for word in words:
+        if word in stop_words or len(word) < 4:
+            continue
+        counts[word] = counts.get(word, 0) + 1
+
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return [word.title() if word in {"sql", "python", "tableau"} else word for word, count in ranked if count >= 2][:5]
+
+
+def normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower()).strip()
+
+
+def infer_job_title(job_post: str, analysis: dict) -> str:
+    lines = [line.strip(" -|") for line in job_post.splitlines() if line.strip()]
+    for line in lines[:6]:
+        if 3 <= len(line) <= 80 and not line.endswith("."):
+            return line
+    return analysis.get("target_role") or analysis.get("role_label") or "Target job"
+
+
+def extract_resume_bullets(saved_resume: str, limit: int = 6) -> list[str]:
+    bullets = []
+    for line in saved_resume.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("-", "*", "•")):
+            bullets.append(stripped.lstrip("-*• ").strip())
+    if bullets:
+        return bullets[:limit]
+
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", saved_resume) if len(part.strip()) > 35]
+    return sentences[:limit]
+
+
+def keyword_names(analysis: dict, job_post: str) -> list[str]:
+    names = [item["Keyword"] for item in derive_job_post_keywords(job_post, analysis)]
+    for item in analysis.get("keyword_targets", []):
+        if item["Keyword"] not in names:
+            names.append(item["Keyword"])
+    return names[:10]
+
+
+def build_tailored_resume_draft(
+    analysis: dict,
+    saved_resume: str,
+    job_post: str,
+    format_name: str,
+    custom_template: str = "",
+    selected_suggestions: list[dict] | None = None,
+) -> str:
+    role = analysis.get("role_label", analysis.get("target_role", "Target Role"))
+    job_title = infer_job_title(job_post, analysis)
+    keywords = keyword_names(analysis, job_post)
+    keyword_line = ", ".join(keywords[:8])
+    source_bullets = extract_resume_bullets(saved_resume)
+    suggestion_bullets = [item["after"] for item in selected_suggestions or []]
+    if not suggestion_bullets:
+        suggestion_bullets = [item["after"] for item in analysis.get("resume_recommendations", [])[:3]]
+
+    targeted_bullets = tailor_bullets(source_bullets, suggestion_bullets, keywords)
+    skills = ", ".join(keywords[:10])
+    summary = (
+        f"Early-career {role} candidate targeting {job_title} with evidence across "
+        f"{keyword_line}. Brings coursework, project delivery, and stakeholder-focused problem solving."
+    )
+
+    section_map = {
+        "HEADER": "NAME\nEmail | Phone | LinkedIn | Portfolio",
+        "SUMMARY": f"SUMMARY\n{summary}",
+        "TARGETED SKILLS": f"TARGETED SKILLS\n{skills}",
+        "EXPERIENCE": "EXPERIENCE\n" + "\n".join(f"- {bullet}" for bullet in targeted_bullets),
+        "PROJECT EXPERIENCE": "PROJECT EXPERIENCE\n" + "\n".join(f"- {bullet}" for bullet in targeted_bullets),
+        "EDUCATION": "EDUCATION\nB.S. Management Information Systems",
+        "SOURCE RESUME EVIDENCE": "SOURCE RESUME EVIDENCE\n" + "\n".join(f"- {bullet}" for bullet in source_bullets[:4]),
+        "JOB POST TARGETS": "JOB POST TARGETS\n" + "\n".join(f"- {keyword}" for keyword in keywords[:8]),
+    }
+
+    if format_name == "Custom student-supplied template" and custom_template.strip():
+        custom_sections = [line.strip().upper() for line in custom_template.splitlines() if line.strip()]
+        rendered = [section_map["HEADER"]]
+        for section in custom_sections:
+            rendered.append(section_map.get(section, f"{section}\nAdd content here using saved resume evidence and job-post keywords."))
+        rendered.append(section_map["JOB POST TARGETS"])
+        return "\n\n".join(rendered).strip() + "\n"
+
+    if format_name == "Project-forward resume":
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "JOB POST TARGETS"]
+    elif format_name == "Experience-forward resume":
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "PROJECT EXPERIENCE", "EDUCATION"]
+    elif format_name == "Skills matrix resume":
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION"]
+    else:
+        order = ["HEADER", "SUMMARY", "EDUCATION", "PROJECT EXPERIENCE", "TARGETED SKILLS", "JOB POST TARGETS"]
+
+    return "\n\n".join(section_map[section] for section in order).strip() + "\n"
+
+
+def tailor_bullets(source_bullets: list[str], suggestion_bullets: list[str], keywords: list[str]) -> list[str]:
+    combined = [*source_bullets[:4], *suggestion_bullets[:3]]
+    if not combined:
+        combined = ["Completed coursework and projects aligned to the target role."]
+
+    tailored = []
+    for index, bullet in enumerate(combined[:6]):
+        keyword = keywords[index % len(keywords)] if keywords else "target role requirements"
+        if keyword.lower() in bullet.lower():
+            tailored.append(bullet)
+        else:
+            tailored.append(f"{bullet} Emphasized {keyword} based on the target job requirements.")
+    return tailored
 
 
 def build_resume_draft(
