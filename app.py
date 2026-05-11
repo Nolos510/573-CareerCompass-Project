@@ -601,6 +601,27 @@ DEMO_VIEW_PARAMS = {
     "checklist": "Action Checklist",
 }
 
+INTERVIEW_PROGRESS_LABELS = {
+    "not_started": "Not started",
+    "questions_ready": "Questions ready",
+    "practice_started": "Practice started",
+    "feedback_received": "Feedback received",
+    "ready_to_apply": "Ready to apply",
+}
+
+INTERVIEW_PROGRESS_ORDER = {
+    "not_started": 0,
+    "questions_ready": 1,
+    "practice_started": 2,
+    "feedback_received": 3,
+    "ready_to_apply": 4,
+}
+
+INTERVIEW_STATUS_HELP = (
+    "Generate questions, answer one, and evaluate your response. "
+    "A 4/5 or higher marks interview prep as ready."
+)
+
 
 st.set_page_config(
     page_title="CareerCompass",
@@ -650,6 +671,9 @@ def initialize_state() -> None:
         "tailoring_change_rows": [],
         "practice_questions": None,
         "interview_evaluation": None,
+        "interview_progress_stage": "not_started",
+        "interview_latest_score": None,
+        "interview_answer_draft": "",
         "demo_mode": False,
         "analysis_validation_error": "",
         "resume_upload_metadata": None,
@@ -694,6 +718,9 @@ def reset_demo_profile() -> None:
     st.session_state.tailoring_change_rows = []
     st.session_state.practice_questions = None
     st.session_state.interview_evaluation = None
+    st.session_state.interview_progress_stage = "not_started"
+    st.session_state.interview_latest_score = None
+    st.session_state.interview_answer_draft = ""
     st.session_state.demo_autorun_view = None
 
 
@@ -746,6 +773,46 @@ def validate_interview_answer(answer: str) -> str:
     if not answer.strip():
         return "Write or paste an answer before requesting feedback."
     return ""
+
+
+def reset_interview_progress() -> None:
+    st.session_state.practice_questions = None
+    st.session_state.interview_evaluation = None
+    st.session_state.interview_progress_stage = "not_started"
+    st.session_state.interview_latest_score = None
+    st.session_state.interview_answer_draft = ""
+
+
+def advance_interview_progress(stage: str, score: int | None = None) -> None:
+    current = st.session_state.get("interview_progress_stage", "not_started")
+    if INTERVIEW_PROGRESS_ORDER[stage] >= INTERVIEW_PROGRESS_ORDER.get(current, 0):
+        st.session_state.interview_progress_stage = stage
+    if score is not None:
+        st.session_state.interview_latest_score = score
+
+
+def interview_status_label() -> str:
+    stage = st.session_state.get("interview_progress_stage", "not_started")
+    return INTERVIEW_PROGRESS_LABELS.get(stage, INTERVIEW_PROGRESS_LABELS["not_started"])
+
+
+def section_header(title: str, help_text: str, level: str = "subheader") -> None:
+    if level == "header":
+        st.header(title, help=help_text)
+    else:
+        st.subheader(title, help=help_text)
+
+
+def explain_market_skill_row(row: pd.Series) -> str:
+    skill = str(row.get("Skill", "this skill"))
+    demand = str(row.get("Demand Signal", "")).lower()
+    if "very high" in demand:
+        return f"Make {skill} easy to find in your resume and prepare an interview example."
+    if "high" in demand:
+        return f"Add truthful {skill} evidence where it supports the job posting."
+    if "medium" in demand:
+        return f"Use {skill} as supporting evidence when it matches your experience."
+    return f"Consider {skill} only if you have real resume or portfolio proof."
 
 
 def target_job_from_session(prefix: str = "target_job") -> dict[str, str]:
@@ -802,8 +869,7 @@ def apply_demo_query_params() -> None:
     started_at = time.perf_counter()
     st.session_state.analysis = run_career_analysis(sample_demo_inputs())
     st.session_state.latency_seconds = time.perf_counter() - started_at
-    st.session_state.practice_questions = None
-    st.session_state.interview_evaluation = None
+    reset_interview_progress()
     st.session_state.demo_autorun_view = view_param
 
 
@@ -1126,25 +1192,93 @@ def resume_export_allowed(change_rows: list[dict], reviewed: bool) -> bool:
 
 
 def render_dashboard(analysis: dict) -> None:
-    st.header("Career Readiness Console")
+    section_header(
+        "Career Readiness Console",
+        "A quick scan of your role fit, highest-priority gaps, resume coverage, and interview-prep progress.",
+        level="header",
+    )
     st.markdown(
         '<div class="cc-page-signal">Live scan of role fit, priority gaps, market demand, and next moves.</div>',
         unsafe_allow_html=True,
     )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Role fit", f"{analysis['match_percentage']}%")
-    c2.metric("Top gaps", analysis["gap_counts"]["high"])
-    c3.metric("Resume match", f"{analysis['keyword_coverage']}%")
-    c4.metric("Interview status", analysis["interview_readiness"])
+    c1.metric(
+        "Role fit",
+        f"{analysis['match_percentage']}%",
+        help="How closely your profile currently lines up with this target role and location.",
+    )
+    c2.metric(
+        "Top gaps",
+        analysis["gap_counts"]["high"],
+        help="High-priority gaps CareerCompass recommends addressing before applying.",
+    )
+    c3.metric(
+        "Resume match",
+        f"{analysis['keyword_coverage']}%",
+        help="How much target skill and evidence coverage CareerCompass sees in your resume.",
+    )
+    c4.metric(
+        "Interview status",
+        interview_status_label(),
+        help=INTERVIEW_STATUS_HELP,
+    )
 
-    st.subheader("Recommended Next Moves")
+    section_header(
+        "Recommended Next Moves",
+        "The highest-leverage actions to take next, ordered by timing and role impact.",
+    )
     next_actions = pd.DataFrame(analysis["next_actions"])
-    st.dataframe(next_actions, use_container_width=True, hide_index=True)
+    st.dataframe(
+        next_actions,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Priority": st.column_config.TextColumn(
+                "Priority",
+                help="When this action should happen in your application prep.",
+            ),
+            "Action": st.column_config.TextColumn(
+                "Action",
+                help="The concrete next step CareerCompass recommends.",
+            ),
+            "Why it matters": st.column_config.TextColumn(
+                "Why it matters",
+                help="Why this action improves your readiness for the target role.",
+            ),
+        },
+    )
 
-    st.subheader("Market Demand Signal")
+    section_header(
+        "Market Demand Signal",
+        "Skills and proof points that appear in retrieved postings or the pasted job description. Use this to decide what belongs in your resume, portfolio, and interview stories.",
+    )
     skills = pd.DataFrame(analysis["market_skills"])
-    st.dataframe(skills, use_container_width=True, hide_index=True)
+    if not skills.empty:
+        skills["What this means"] = skills.apply(explain_market_skill_row, axis=1)
+    st.dataframe(
+        skills,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Skill": st.column_config.TextColumn(
+                "Skill",
+                help="A role-relevant skill or proof point to make visible.",
+            ),
+            "Demand Signal": st.column_config.TextColumn(
+                "Demand Signal",
+                help="How often this skill appears in the retrieved evidence for the target role.",
+            ),
+            "Evidence": st.column_config.TextColumn(
+                "Evidence",
+                help="Where CareerCompass saw this demand signal.",
+            ),
+            "What this means": st.column_config.TextColumn(
+                "What this means",
+                help="Plain-language guidance for how to use this signal.",
+            ),
+        },
+    )
     retrieved_postings = analysis.get("retrieved_job_postings", [])
     if retrieved_postings:
         with st.expander("Retrieved job-posting evidence"):
@@ -1160,18 +1294,75 @@ def render_dashboard(analysis: dict) -> None:
             ]
             st.dataframe(pd.DataFrame(evidence_rows), use_container_width=True, hide_index=True)
 
-    st.subheader("Skill Gap Radar")
+    section_header(
+        "Skill Gap Radar",
+        "The skills where your current resume/coursework evidence looks weakest compared with the target role. Start with High severity rows.",
+    )
     gaps = pd.DataFrame(analysis["gap_report"])
-    st.dataframe(gaps, use_container_width=True, hide_index=True)
+    st.dataframe(
+        gaps,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Skill": st.column_config.TextColumn(
+                "Skill",
+                help="The missing or underdeveloped skill area.",
+            ),
+            "Current Evidence": st.column_config.TextColumn(
+                "Current Evidence",
+                help="What CareerCompass can currently find in your resume and coursework.",
+            ),
+            "Severity": st.column_config.TextColumn(
+                "Severity",
+                help="How urgently this gap should be addressed for the target role.",
+            ),
+            "Recommendation": st.column_config.TextColumn(
+                "Recommendation",
+                help="A practical way to reduce this gap.",
+            ),
+            "First Step": st.column_config.TextColumn(
+                "First Step",
+                help="The smallest useful action to begin closing this gap.",
+            ),
+            "Resume Proof": st.column_config.TextColumn(
+                "Resume Proof",
+                help="The kind of truthful resume evidence to create or clarify.",
+            ),
+        },
+    )
 
-    st.subheader("Suggested Certifications and Short Courses")
+    section_header(
+        "Suggested Certifications and Short Courses",
+        "Optional learning signals that can help fill gaps. Prioritize free or fast options that support your target role evidence.",
+    )
     st.dataframe(
         pd.DataFrame(analysis["certification_recommendations"]),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Area": st.column_config.TextColumn(
+                "Area",
+                help="The gap or capability this resource supports.",
+            ),
+            "Recommendation": st.column_config.TextColumn(
+                "Recommendation",
+                help="A suggested course, credential, or learning artifact.",
+            ),
+            "Priority": st.column_config.TextColumn(
+                "Priority",
+                help="How useful this resource is for the current target.",
+            ),
+            "Why": st.column_config.TextColumn(
+                "Why",
+                help="Why this resource may improve your application evidence.",
+            ),
+        },
     )
 
-    st.subheader("Start Closing a Gap")
+    section_header(
+        "Start Closing a Gap",
+        "Pick one gap and turn it into a small project, resume bullet, or interview story.",
+    )
     selected_gap = st.selectbox(
         "Choose a skill gap to work on",
         options=[gap["Skill"] for gap in analysis["gap_report"]],
@@ -1600,6 +1791,7 @@ def render_interview(analysis: dict) -> None:
     st.caption(
         "Practice against generated questions, a company-specific scenario, or a scenario the student already received."
     )
+    advance_interview_progress("questions_ready")
 
     scenario_options = list(analysis["interview_scenarios"].keys()) + ["Custom scenario"]
     c1, c2 = st.columns([1, 1])
@@ -1627,6 +1819,8 @@ def render_interview(analysis: dict) -> None:
             scenario,
         )
         st.session_state.interview_evaluation = None
+        st.session_state.interview_answer_draft = ""
+        advance_interview_progress("questions_ready")
 
     questions = st.session_state.practice_questions or analysis["interview_questions"]
     question_options = list(range(len(questions)))
@@ -1642,7 +1836,15 @@ def render_interview(analysis: dict) -> None:
     st.write(selected_question)
     st.caption(f"Rubric focus: {selected_detail['rubric_focus']}")
 
-    answer = st.text_area("Your answer", height=180, placeholder="Type a STAR-style answer here...")
+    answer = st.text_area(
+        "Your answer",
+        height=180,
+        placeholder="Type a STAR-style answer here...",
+        key="interview_answer_draft",
+    )
+    if answer.strip() and not st.session_state.interview_evaluation:
+        advance_interview_progress("practice_started")
+
     if st.button("Evaluate my answer", type="primary"):
         answer_error = validate_interview_answer(answer)
         if answer_error:
@@ -1652,6 +1854,11 @@ def render_interview(analysis: dict) -> None:
                 selected_question,
                 answer,
                 selected_detail["rubric_focus"],
+            )
+            score = st.session_state.interview_evaluation["score"]
+            advance_interview_progress(
+                "ready_to_apply" if score >= 4 else "feedback_received",
+                score,
             )
 
     if st.session_state.interview_evaluation:
@@ -1778,8 +1985,7 @@ def main() -> None:
             render_progress()
             st.session_state.analysis = run_career_analysis(inputs)
             st.session_state.latency_seconds = time.perf_counter() - started_at
-            st.session_state.practice_questions = None
-            st.session_state.interview_evaluation = None
+            reset_interview_progress()
 
     if st.session_state.analysis_validation_error and not st.session_state.analysis:
         st.error(st.session_state.analysis_validation_error)
