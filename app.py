@@ -793,12 +793,17 @@ def render_interview(analysis: dict) -> None:
         st.session_state.interview_evaluation = None
 
     questions = st.session_state.practice_questions or analysis["interview_questions"]
-    selected_question = st.radio(
+    question_options = list(range(len(questions)))
+    selected_index = st.radio(
         "Choose a question to practice",
-        options=[item["question"] for item in questions],
+        options=question_options,
+        format_func=lambda index: _question_picker_label(questions[index]),
     )
 
-    selected_detail = next(item for item in questions if item["question"] == selected_question)
+    selected_detail = questions[selected_index]
+    selected_question = selected_detail["question"]
+    st.markdown("**Practice question**")
+    st.write(selected_question)
     st.caption(f"Rubric focus: {selected_detail['rubric_focus']}")
 
     answer = st.text_area("Your answer", height=180, placeholder="Type a STAR-style answer here...")
@@ -816,6 +821,13 @@ def render_interview(analysis: dict) -> None:
         st.write(result["feedback"])
         with st.expander("Show a strong sample answer"):
             st.write(result["sample_answer"])
+
+
+def _question_picker_label(question: dict) -> str:
+    text = " ".join(str(question.get("question", "")).split())
+    if len(text) > 92:
+        text = text[:89].rsplit(" ", 1)[0].rstrip(",.;:") + "..."
+    return f"{question.get('type', 'Question')}: {text}"
 
 
 def render_report(analysis: dict) -> None:

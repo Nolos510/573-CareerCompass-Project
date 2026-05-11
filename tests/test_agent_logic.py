@@ -11,7 +11,7 @@ from careercompass.agent_logic import (
     run_market_demand_logic,
     validate_agent_output,
 )
-from careercompass.agents import _role_profile, create_initial_state
+from careercompass.agents import _role_profile, create_initial_state, generate_interview_questions
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
 from careercompass.llm_client import ModelCallError, call_openai_json, llm_mode_enabled
 from careercompass.prompts import build_specialist_prompt
@@ -59,6 +59,40 @@ class AgentLogicTest(unittest.TestCase):
         self.assertEqual(result["score"], 0)
         self.assertIn("No answer entered", result["feedback"])
         self.assertTrue(result["sample_answer"])
+
+    def test_interview_questions_do_not_dump_custom_scenario_text(self):
+        scenario = (
+            "Role Product Marketing Designer at a mid-size SaaS company called FlowForge. "
+            "FlowForge makes workflow automation software for small teams. They are hiring someone who can create "
+            "launch campaigns, improve product onboarding, and collaborate with product managers, designers, and "
+            "growth marketers. Interview Context Maya is interviewing for a role where she would help launch new "
+            "product features, design marketing assets, and improve conversion from free trial to paid plans."
+        )
+
+        questions = generate_interview_questions("Product Marketing Designer", "Jamba Juice", scenario)
+        question_text = " ".join(item["question"] for item in questions)
+
+        self.assertGreaterEqual(len(questions), 5)
+        self.assertNotIn("Product Marketing Designer at a mid-size SaaS company called FlowForge", question_text)
+        self.assertTrue(all(len(item["question"]) < 260 for item in questions))
+
+    def test_product_marketing_scenario_avoids_generic_sql_question(self):
+        scenario = (
+            "A product marketing candidate needs to design launch campaigns, improve onboarding, and measure "
+            "conversion from free trial to paid plans."
+        )
+
+        questions = generate_interview_questions("Product Marketing Designer", "Jamba Juice", scenario)
+        question_text = " ".join(item["question"].lower() for item in questions)
+
+        self.assertNotIn("use sql", question_text)
+        self.assertIn("conversion", question_text)
+        self.assertIn("jamba juice", question_text)
+
+    def test_interview_preset_pool_is_expanded(self):
+        self.assertGreaterEqual(len(_role_profile("Business Analyst")["interview_scenarios"]), 6)
+        self.assertGreaterEqual(len(_role_profile("Project Manager")["interview_scenarios"]), 6)
+        self.assertGreaterEqual(len(_role_profile("Business Analyst / Project Manager")["interview_scenarios"]), 6)
 
     def test_json_parser_accepts_fenced_model_output(self):
         payload = parse_json_object(

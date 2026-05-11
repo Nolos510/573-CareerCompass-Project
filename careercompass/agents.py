@@ -665,9 +665,30 @@ def _business_analyst_profile() -> dict:
         "technical_rubric": "problem decomposition, joins, aggregation, validation checks",
         "default_interview_scenario": "a dashboard shows revenue is flat while customer acquisition is up",
         "interview_scenarios": {
-            "Dashboard performance review": "a dashboard shows revenue is flat while customer acquisition is up",
-            "Stakeholder requirements meeting": "a business team asks for a report but cannot clearly define success metrics",
-            "Data quality issue": "leadership notices two dashboards report different numbers for the same KPI",
+            "Dashboard performance review": (
+                "A weekly executive dashboard shows revenue is flat while customer acquisition is up. "
+                "The hiring manager wants to know whether the issue is data quality, conversion, retention, or pricing."
+            ),
+            "Stakeholder requirements meeting": (
+                "A business team asks for a new report but cannot clearly define the audience, decision, success metrics, "
+                "or must-have fields. Several stakeholders are using different definitions for the same KPI."
+            ),
+            "Data quality issue": (
+                "Leadership notices two dashboards report different numbers for the same KPI. The source systems, refresh "
+                "timing, filters, and ownership are unclear, but the dashboard is used in a monthly operating review."
+            ),
+            "Process automation handoff": (
+                "An operations team wants to automate a manual spreadsheet workflow. They need requirements, exception "
+                "handling rules, adoption risks, and a simple way to measure whether the automation saves time."
+            ),
+            "Executive KPI readout": (
+                "A director asks for a short readout explaining why customer support response times improved but customer "
+                "satisfaction did not. The analyst must separate noise from likely drivers and recommend next steps."
+            ),
+            "UAT launch readiness": (
+                "A new intake form is scheduled to launch next week. During user acceptance testing, users find confusing "
+                "field labels, missing validation, and one report that does not match the agreed acceptance criteria."
+            ),
         },
     }
 
@@ -788,9 +809,30 @@ def _project_manager_profile() -> dict:
         "technical_rubric": "scope tradeoffs, stakeholder communication, risk mitigation, prioritization",
         "default_interview_scenario": "a cross-functional project is behind schedule and stakeholders disagree on what to cut",
         "interview_scenarios": {
-            "Scope creep": "stakeholders keep adding requirements after the project timeline has already been approved",
-            "Missed deadline": "a cross-functional project is behind schedule and stakeholders disagree on what to cut",
-            "Team conflict": "engineering and business teams disagree about whether a feature is ready to launch",
+            "Scope creep": (
+                "Stakeholders keep adding requirements after the project timeline has already been approved. The team can "
+                "absorb only some changes without risking launch quality or the committed deadline."
+            ),
+            "Missed deadline": (
+                "A cross-functional project is two weeks behind schedule and stakeholders disagree on what to cut. "
+                "The sponsor wants a recovery plan with tradeoffs, risks, owners, and a new checkpoint cadence."
+            ),
+            "Team conflict": (
+                "Engineering and business teams disagree about whether a feature is ready to launch. One side is worried "
+                "about defects while the other is worried about missing a promised customer milestone."
+            ),
+            "Vendor migration risk": (
+                "A vendor tool migration is approaching go-live, but data mapping, training, and rollback plans are not "
+                "fully resolved. Leaders need a decision on whether to launch, delay, or reduce scope."
+            ),
+            "Resource constraint": (
+                "Two priority projects need the same designer and analyst during the same sprint. Each sponsor claims "
+                "their work is urgent, and the project manager must create a transparent prioritization path."
+            ),
+            "Executive escalation": (
+                "A project dependency is blocked by another department. The team has tried informal follow-ups, but the "
+                "launch date is at risk and executives need a concise escalation with options."
+            ),
         },
     }
 
@@ -870,9 +912,30 @@ def _hybrid_profile() -> dict:
         "technical_rubric": "requirements triage, stakeholder alignment, data feasibility, delivery tradeoffs",
         "default_interview_scenario": "stakeholders want a dashboard and project plan, but disagree on which metrics matter most",
         "interview_scenarios": {
-            "Hybrid BA/PM case": "stakeholders want a dashboard and project plan, but disagree on which metrics matter most",
-            "Prioritization conflict": "two teams request different deliverables and both claim their request is urgent",
-            "Data and delivery issue": "the project is on schedule, but the underlying data has quality problems",
+            "Hybrid BA/PM case": (
+                "Stakeholders want a dashboard and project plan, but disagree on which metrics matter most. The team needs "
+                "requirements, a delivery timeline, and a decision framework for what will be included in the first release."
+            ),
+            "Prioritization conflict": (
+                "Two teams request different deliverables and both claim their request is urgent. The candidate must compare "
+                "business value, effort, dependencies, risks, and the evidence behind each request."
+            ),
+            "Data and delivery issue": (
+                "The project is on schedule, but the underlying data has quality problems. Leaders still expect a launch "
+                "update, so the team must decide what can be shipped, what needs caveats, and who owns remediation."
+            ),
+            "Automation rollout": (
+                "A manual approval workflow is being replaced with a lightweight automation. Users are worried about edge "
+                "cases, managers want cycle-time reporting, and the project needs rollout training."
+            ),
+            "Metrics definition workshop": (
+                "Sales, operations, and support leaders each define active customer differently. The interview case asks how "
+                "to facilitate alignment, document the definition, and build a dashboard everyone trusts."
+            ),
+            "Launch retrospective": (
+                "A launch hit the date but missed adoption goals. The team needs to analyze what happened, separate delivery "
+                "issues from market-fit issues, and create a practical improvement plan."
+            ),
         },
     }
 
