@@ -322,23 +322,9 @@ def apply_demo_query_params() -> None:
 
 def render_sidebar() -> None:
     st.sidebar.title("CareerCompass")
-    st.sidebar.caption("Agentic AI career strategy MVP")
+    st.sidebar.caption("Career strategy workspace")
     st.sidebar.divider()
-    st.session_state.presenter_mode = st.sidebar.toggle(
-        "Presenter mode",
-        value=st.session_state.presenter_mode,
-        help="Shows demo cues for the video walkthrough.",
-    )
-    st.sidebar.divider()
-    st.sidebar.markdown("**Demo scenario**")
-    st.sidebar.write("Recent MIS graduate targeting Business Analyst or Project Manager roles.")
-    st.sidebar.divider()
-    st.sidebar.markdown("**Agent workflow**")
-    st.sidebar.write("Supervisor -> Market -> Gap -> Curriculum -> Resume -> Interview -> Synthesis")
-    st.sidebar.divider()
-    st.sidebar.markdown("**Team lane snapshot**")
-    for item in ROLE_STATUS:
-        st.sidebar.caption(f"{item['owner']} - {item['lane']}: {item['status']}")
+    st.sidebar.write("Build a profile, compare role gaps, tailor resumes, and practice interviews.")
 
 
 def render_role_status_panel() -> None:
@@ -593,6 +579,13 @@ def render_dashboard(analysis: dict) -> None:
     gaps = pd.DataFrame(analysis["gap_report"])
     st.dataframe(gaps, use_container_width=True, hide_index=True)
 
+    st.subheader("Suggested certifications and short courses")
+    st.dataframe(
+        pd.DataFrame(analysis["certification_recommendations"]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
     st.subheader("Start closing a gap")
     selected_gap = st.selectbox(
         "Choose a skill gap to work on",
@@ -662,6 +655,10 @@ def render_roadmap(analysis: dict) -> None:
                 st.checkbox(task, value=False, key=f"{phase['period']}-{task}")
             st.caption(f"Resource relevance: {phase['resource_relevance']}/5")
 
+    st.subheader("Portfolio proof ideas")
+    for item in analysis["portfolio_ideas"]:
+        st.checkbox(item, value=False, key=f"portfolio-{item}")
+
 
 def render_resume(analysis: dict) -> None:
     st.header("Resume Optimization")
@@ -673,6 +670,11 @@ def render_resume(analysis: dict) -> None:
     )
     keyword_df = pd.DataFrame(analysis["keyword_targets"])
     st.dataframe(keyword_df, use_container_width=True, hide_index=True)
+
+    st.subheader("Resume evidence reminders")
+    st.caption("Use these while reviewing the tailored draft for this job post.")
+    for item in analysis["resume_checklist"]:
+        st.checkbox(item, value=False, key=f"resume-check-{item}")
 
     saved_resume = st.session_state.resume_text_area.strip()
     if st.session_state.resume_profile_source_snapshot != saved_resume:
@@ -970,10 +972,6 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    if st.session_state.presenter_mode:
-        st.subheader("Team build status")
-        render_role_status_panel()
-
     inputs = render_inputs()
 
     if st.button("Run CareerCompass analysis", type="primary"):
@@ -991,7 +989,6 @@ def main() -> None:
             "Resume",
             "Interview",
             "Final Report",
-            "Action Checklist",
         ]
         active_view = st.radio(
             "CareerCompass workspace",
@@ -999,8 +996,6 @@ def main() -> None:
             horizontal=True,
             key="active_view",
         )
-        render_presenter_cue(active_view)
-
         if active_view == "Dashboard":
             render_dashboard(st.session_state.analysis)
         elif active_view == "Roadmap":
@@ -1011,8 +1006,6 @@ def main() -> None:
             render_interview(st.session_state.analysis)
         elif active_view == "Final Report":
             render_report(st.session_state.analysis)
-        elif active_view == "Action Checklist":
-            render_action_checklist(st.session_state.analysis)
 
 
 JOB_KEYWORD_ALIASES = {
@@ -1032,6 +1025,34 @@ JOB_KEYWORD_ALIASES = {
     "Customer insight": ["customer", "user research", "persona", "voice of customer"],
     "Product marketing": ["product marketing", "launch", "campaign", "positioning"],
     "Process improvement": ["process improvement", "workflow", "automation", "operational"],
+}
+
+
+RESUME_SECTION_ALIASES = {
+    "SUMMARY": "SUMMARY",
+    "PROFILE": "SUMMARY",
+    "PROFESSIONAL SUMMARY": "SUMMARY",
+    "OBJECTIVE": "SUMMARY",
+    "SKILLS": "SKILLS",
+    "TECHNICAL SKILLS": "SKILLS",
+    "CORE COMPETENCIES": "SKILLS",
+    "EDUCATION": "EDUCATION",
+    "ACADEMIC BACKGROUND": "EDUCATION",
+    "EXPERIENCE": "EXPERIENCE",
+    "WORK EXPERIENCE": "EXPERIENCE",
+    "PROFESSIONAL EXPERIENCE": "EXPERIENCE",
+    "EMPLOYMENT": "EXPERIENCE",
+    "MILITARY EXPERIENCE": "EXPERIENCE",
+    "LEADERSHIP EXPERIENCE": "EXPERIENCE",
+    "PROJECTS": "PROJECTS",
+    "PROJECT EXPERIENCE": "PROJECTS",
+    "SELECTED PROJECTS": "PROJECTS",
+    "CERTIFICATIONS": "CERTIFICATIONS",
+    "CERTIFICATION": "CERTIFICATIONS",
+    "CLEARANCE": "CERTIFICATIONS",
+    "AWARDS": "ADDITIONAL",
+    "VOLUNTEER": "ADDITIONAL",
+    "LANGUAGES": "ADDITIONAL",
 }
 
 
@@ -1163,17 +1184,169 @@ def infer_job_title(job_post: str, analysis: dict) -> str:
     return analysis.get("target_role") or analysis.get("role_label") or "Target job"
 
 
-def extract_resume_bullets(saved_resume: str, limit: int = 6) -> list[str]:
-    bullets = []
-    for line in saved_resume.splitlines():
-        stripped = line.strip()
-        if stripped.startswith(("-", "*", "•")):
-            bullets.append(stripped.lstrip("-*• ").strip())
-    if bullets:
-        return bullets[:limit]
+def parse_resume_sections(saved_resume: str) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {"HEADER": []}
+    current = "HEADER"
 
-    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", saved_resume) if len(part.strip()) > 35]
-    return sentences[:limit]
+    for raw_line in saved_resume.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        heading, remainder = split_resume_heading(line)
+        if heading:
+            current = heading
+            sections.setdefault(current, [])
+            if remainder:
+                sections[current].append(remainder)
+            continue
+
+        sections.setdefault(current, []).append(line)
+
+    return sections
+
+
+def split_resume_heading(line: str) -> tuple[str | None, str]:
+    normalized = re.sub(r"[^A-Za-z ]", "", line).strip().upper()
+    if normalized in RESUME_SECTION_ALIASES:
+        return RESUME_SECTION_ALIASES[normalized], ""
+
+    if ":" in line:
+        prefix, remainder = line.split(":", 1)
+        normalized_prefix = re.sub(r"[^A-Za-z ]", "", prefix).strip().upper()
+        if normalized_prefix in RESUME_SECTION_ALIASES:
+            return RESUME_SECTION_ALIASES[normalized_prefix], remainder.strip()
+
+    return None, ""
+
+
+def extract_resume_identity(saved_resume: str) -> dict[str, str]:
+    sections = parse_resume_sections(saved_resume)
+    header_lines = sections.get("HEADER", [])
+    fallback_lines = [line.strip() for line in saved_resume.splitlines() if line.strip()]
+    candidate_lines = header_lines or fallback_lines[:6]
+
+    email = find_first(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", saved_resume)
+    phone = find_first(r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}", saved_resume)
+    links = re.findall(r"(?:https?://)?(?:www\.)?(?:linkedin\.com|github\.com|[\w.-]+\.(?:com|net|io|me))/\S+", saved_resume, flags=re.IGNORECASE)
+
+    name = "NAME"
+    for line in candidate_lines:
+        if line == email or line == phone:
+            continue
+        if email and email.lower() in line.lower():
+            continue
+        if phone and phone in line:
+            continue
+        if not has_contact_signal(line) and len(line.split()) <= 5:
+            name = line.strip(" -")
+            break
+
+    location = ""
+    for line in candidate_lines:
+        if line == name or has_contact_signal(line):
+            continue
+        if any(char.isdigit() for char in line) and "," in line:
+            location = line
+            break
+
+    contact_parts = [part for part in [email, phone, *links[:2], location] if part]
+    return {
+        "name": name,
+        "contact": " | ".join(dict.fromkeys(contact_parts)),
+    }
+
+
+def find_first(pattern: str, text: str) -> str:
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    return match.group(0) if match else ""
+
+
+def has_contact_signal(line: str) -> bool:
+    lower_line = line.lower()
+    return bool(
+        "@" in line
+        or re.search(r"\d{3}[-.\s)]?\d{3}[-.\s]?\d{4}", line)
+        or "linkedin" in lower_line
+        or "github" in lower_line
+        or "portfolio" in lower_line
+        or "http" in lower_line
+    )
+
+
+def extract_resume_education(saved_resume: str) -> list[str]:
+    sections = parse_resume_sections(saved_resume)
+    education = clean_resume_lines(sections.get("EDUCATION", []))
+    if education:
+        return education
+
+    degree_signals = ["degree", "bachelor", "master", "associate", "college", "university", "school", "sfsu"]
+    return [
+        line.strip()
+        for line in saved_resume.splitlines()
+        if any(signal in line.lower() for signal in degree_signals)
+    ][:8]
+
+
+def extract_resume_skills(saved_resume: str) -> list[str]:
+    sections = parse_resume_sections(saved_resume)
+    skills = clean_resume_lines(sections.get("SKILLS", []))
+    return split_inline_items(skills)[:16]
+
+
+def extract_resume_bullets(saved_resume: str, limit: int = 6) -> list[str]:
+    sections = parse_resume_sections(saved_resume)
+    source_lines = []
+    for section in ["EXPERIENCE", "PROJECTS", "SUMMARY", "ADDITIONAL"]:
+        source_lines.extend(sections.get(section, []))
+
+    bullets = []
+    for line in clean_resume_lines(source_lines):
+        if has_contact_signal(line):
+            continue
+        if looks_like_education_line(line):
+            continue
+        if split_resume_heading(line)[0]:
+            continue
+        bullets.extend(split_resume_line_into_bullets(line))
+
+    return bullets[:limit]
+
+
+def clean_resume_lines(lines: list[str]) -> list[str]:
+    cleaned = []
+    for line in lines:
+        stripped = line.strip().lstrip("-*• ").strip()
+        if stripped and stripped not in cleaned:
+            cleaned.append(stripped)
+    return cleaned
+
+
+def split_inline_items(lines: list[str]) -> list[str]:
+    items = []
+    for line in lines:
+        chunks = re.split(r",|;|\|", line)
+        for chunk in chunks:
+            item = chunk.strip()
+            if item and item not in items:
+                items.append(item)
+    return items or lines
+
+
+def split_resume_line_into_bullets(line: str) -> list[str]:
+    stripped = line.strip().lstrip("-*• ").strip()
+    if len(stripped) > 220:
+        parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", stripped) if len(part.strip()) > 35]
+        return parts or [stripped[:217].rstrip(",.;:") + "..."]
+    return [stripped]
+
+
+def looks_like_education_line(line: str) -> bool:
+    lower_line = line.lower()
+    return any(
+        signal in lower_line
+        for signal in ["bachelor", "master", "associate", "college", "university", "degree", "sfsu", "gpa"]
+    )
 
 
 def keyword_names(analysis: dict, job_post: str) -> list[str]:
@@ -1196,6 +1369,9 @@ def build_tailored_resume_draft(
     job_title = infer_job_title(job_post, analysis)
     keywords = keyword_names(analysis, job_post)
     keyword_line = ", ".join(keywords[:8])
+    identity = extract_resume_identity(saved_resume)
+    education_lines = extract_resume_education(saved_resume)
+    saved_skills = extract_resume_skills(saved_resume)
     source_bullets = extract_resume_bullets(saved_resume)
     suggestion_bullets = [item["after"] for item in selected_suggestions or []]
     if not suggestion_bullets:
@@ -1203,19 +1379,28 @@ def build_tailored_resume_draft(
 
     targeted_bullets = tailor_bullets(source_bullets, suggestion_bullets, keywords)
     skills = ", ".join(keywords[:10])
+    candidate_label = f"{role} candidate" if role.lower() in job_title.lower() else "candidate"
     summary = (
-        f"Early-career {role} candidate targeting {job_title} with evidence across "
+        f"Early-career {candidate_label} targeting {job_title} with evidence across "
         f"{keyword_line}. Brings coursework, project delivery, and stakeholder-focused problem solving."
     )
+    header = identity["name"]
+    if identity["contact"]:
+        header += f"\n{identity['contact']}"
+    education = "\n".join(education_lines) if education_lines else "Add education from saved resume."
+    skills_with_resume = merge_unique(saved_skills, keywords)[:14]
+    skills = ", ".join(skills_with_resume)
+    improvements = "\n".join(f"- {bullet}" for bullet in suggestion_bullets[:4])
 
     section_map = {
-        "HEADER": "NAME\nEmail | Phone | LinkedIn | Portfolio",
+        "HEADER": header,
         "SUMMARY": f"SUMMARY\n{summary}",
         "TARGETED SKILLS": f"TARGETED SKILLS\n{skills}",
         "EXPERIENCE": "EXPERIENCE\n" + "\n".join(f"- {bullet}" for bullet in targeted_bullets),
         "PROJECT EXPERIENCE": "PROJECT EXPERIENCE\n" + "\n".join(f"- {bullet}" for bullet in targeted_bullets),
-        "EDUCATION": "EDUCATION\nB.S. Management Information Systems",
+        "EDUCATION": f"EDUCATION\n{education}",
         "SOURCE RESUME EVIDENCE": "SOURCE RESUME EVIDENCE\n" + "\n".join(f"- {bullet}" for bullet in source_bullets[:4]),
+        "CAREERCOMPASS IMPROVEMENTS": f"CAREERCOMPASS IMPROVEMENTS\n{improvements}",
         "JOB POST TARGETS": "JOB POST TARGETS\n" + "\n".join(f"- {keyword}" for keyword in keywords[:8]),
     }
 
@@ -1224,17 +1409,18 @@ def build_tailored_resume_draft(
         rendered = [section_map["HEADER"]]
         for section in custom_sections:
             rendered.append(section_map.get(section, f"{section}\nAdd content here using saved resume evidence and job-post keywords."))
+        rendered.append(section_map["CAREERCOMPASS IMPROVEMENTS"])
         rendered.append(section_map["JOB POST TARGETS"])
         return "\n\n".join(rendered).strip() + "\n"
 
     if format_name == "Project-forward resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "JOB POST TARGETS"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "JOB POST TARGETS"]
     elif format_name == "Experience-forward resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "PROJECT EXPERIENCE", "EDUCATION"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS"]
     elif format_name == "Skills matrix resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS"]
     else:
-        order = ["HEADER", "SUMMARY", "EDUCATION", "PROJECT EXPERIENCE", "TARGETED SKILLS", "JOB POST TARGETS"]
+        order = ["HEADER", "SUMMARY", "EXPERIENCE", "EDUCATION", "TARGETED SKILLS", "CAREERCOMPASS IMPROVEMENTS", "JOB POST TARGETS"]
 
     return "\n\n".join(section_map[section] for section in order).strip() + "\n"
 
@@ -1252,6 +1438,15 @@ def tailor_bullets(source_bullets: list[str], suggestion_bullets: list[str], key
         else:
             tailored.append(f"{bullet} Emphasized {keyword} based on the target job requirements.")
     return tailored
+
+
+def merge_unique(primary: list[str], secondary: list[str]) -> list[str]:
+    merged = []
+    for item in [*primary, *secondary]:
+        cleaned = item.strip()
+        if cleaned and cleaned.lower() not in {existing.lower() for existing in merged}:
+            merged.append(cleaned)
+    return merged
 
 
 def build_resume_draft(

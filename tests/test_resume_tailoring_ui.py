@@ -3,6 +3,8 @@ import unittest
 from app import (
     build_tailored_resume_draft,
     derive_job_post_keywords,
+    extract_resume_education,
+    extract_resume_identity,
     resume_format_template_key,
 )
 from careercompass.agents import run_career_analysis
@@ -47,6 +49,41 @@ class ResumeTailoringUiTest(unittest.TestCase):
         self.assertIn("Tableau", tailored)
         self.assertIn("PROJECT EXPERIENCE", tailored)
         self.assertIn("Designed a database schema", tailored)
+
+    def test_tailored_resume_preserves_contact_and_all_degrees(self):
+        saved_resume = """
+        Carlo Spampinato
+        2180 Greenridge Drive, Richmond, California 94803
+        (510) 384-6716
+        Knolos510@gmail.com
+
+        PROFESSIONAL EXPERIENCE: A dedicated and experienced professional who balances mission needs with customer satisfaction.
+        Highly motivated communicator and problem solver who works well with diverse teams.
+
+        EDUCATION
+        June 2019 - Present
+        Contra Costa College - In Progress for Business Transfer
+        SFSU - Bachelors in Decision Sciences
+        SFSU - Bachelors in Information Systems
+        SFSU - Bachelors in Business Analytics
+        """
+
+        identity = extract_resume_identity(saved_resume)
+        education = extract_resume_education(saved_resume)
+        tailored = build_tailored_resume_draft(
+            analysis=self.analysis,
+            saved_resume=saved_resume,
+            job_post="Product Marketing Designer\nNeeds stakeholder communication and product marketing.",
+            format_name="Experience-forward resume",
+        )
+
+        self.assertEqual(identity["name"], "Carlo Spampinato")
+        self.assertIn("Knolos510@gmail.com", identity["contact"])
+        self.assertIn("(510) 384-6716", identity["contact"])
+        self.assertIn("SFSU - Bachelors in Decision Sciences", education)
+        self.assertIn("SFSU - Bachelors in Information Systems", tailored)
+        self.assertIn("SFSU - Bachelors in Business Analytics", tailored)
+        self.assertNotIn("NAME\nEmail | Phone | LinkedIn | Portfolio", tailored)
 
     def test_resume_format_labels_map_to_template_keys(self):
         self.assertEqual(resume_format_template_key("Project-forward resume"), "Project-forward")
