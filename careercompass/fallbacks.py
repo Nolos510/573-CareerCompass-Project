@@ -19,18 +19,18 @@ SKILL_ALIASES = {
     "project coordination": ["project coordination", "coordinated", "led a team", "team project"],
     "milestones": ["milestone", "milestones", "timeline", "schedule"],
     "documentation": ["documentation", "documenting", "documented"],
-    "data analysis": ["data analysis", "analytics", "analysis"],
+    "data analysis": ["data analysis", "analytics", "insights"],
     "data storytelling": ["storytelling", "presenting findings", "recommendations"],
     "process improvement": ["process improvement", "improvement"],
     "process mapping": ["process mapping", "process map"],
     "user acceptance testing": ["uat", "user acceptance", "testing", "acceptance testing"],
     "business process": ["business process", "process"],
-    "experimentation": ["experimentation", "experiment", "a/b", "ab test", "a/b testing"],
-    "A/B testing": ["a/b", "ab test", "a/b testing", "experiment", "experimentation"],
-    "campaign strategy": ["campaign", "campaigns", "channel strategy", "marketing channels"],
-    "conversion optimization": ["conversion", "funnel", "activation", "retention"],
-    "customer insight": ["customer insight", "customer research", "persona", "audience", "voice of customer"],
-    "Figma": ["figma", "wireframe", "wireframes", "prototype"],
+    "experimentation": ["experimentation", "experiment", "a/b test", "a/b testing", "split test"],
+    "A/B testing": ["a/b test", "a/b testing", "ab test", "ab testing", "split test", "experiment", "experimentation"],
+    "campaign strategy": ["campaign strategy", "campaign plan", "channel strategy", "marketing channels"],
+    "conversion optimization": ["conversion optimization", "conversion funnel", "funnel optimization", "activation", "retention"],
+    "customer insight": ["customer insight", "customer research", "persona", "user research", "voice of customer"],
+    "Figma": ["figma"],
     "launch planning": ["launch", "go-to-market", "gtm", "release planning"],
     "positioning": ["positioning", "messaging", "value proposition"],
     "product design": ["product design", "interaction design", "visual design"],
@@ -72,6 +72,26 @@ STRONG_EVIDENCE_TERMS = [
     "tracked",
     "validated",
 ]
+
+BROAD_ALIAS_TERMS = {
+    "analysis",
+    "audience",
+    "campaign",
+    "conversion",
+    "customer",
+    "dashboard",
+    "funnel",
+    "launch",
+    "marketing",
+    "presentation",
+    "process",
+    "product",
+    "prototype",
+    "reporting",
+    "testing",
+    "wireframe",
+    "wireframes",
+}
 
 
 def market_skill_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
@@ -183,7 +203,7 @@ def assess_skill_evidence(skill: str, resume_text: str, coursework: list[str]) -
         }
 
     for match in resume_matches:
-        if _has_strong_context(match["excerpt"]):
+        if _has_strong_context(skill, match["term"], match["excerpt"]):
             return {
                 "skill": skill,
                 "status": "Strong Evidence",
@@ -257,8 +277,17 @@ def _evidence_segments(text: str) -> list[str]:
     return segments
 
 
-def _has_strong_context(excerpt: str) -> bool:
+def _has_strong_context(skill: str, matched_term: str, excerpt: str) -> bool:
     normalized_excerpt = _normalize_text(excerpt)
+    normalized_skill = _normalize_text(skill)
+    normalized_term = _normalize_text(matched_term)
+    if normalized_term in BROAD_ALIAS_TERMS and normalized_skill != normalized_term:
+        return False
+    if normalized_skill in {"a/b testing", "experimentation"} and not re.search(
+        r"\ba/b\b|\bab test(?:ing)?\b|\bsplit test(?:ing)?\b|\bexperiment(?:ation|s|ed)?\b|\bvariant(?:s)?\b",
+        normalized_excerpt,
+    ):
+        return False
     if any(term in normalized_excerpt for term in STRONG_EVIDENCE_TERMS):
         return True
     if re.search(r"\d+%|\$[\d,.]+|\b\d+\s*(hours?|days?|weeks?|users?|reports?|dashboards?)\b", normalized_excerpt):
@@ -279,7 +308,7 @@ def _skill_terms(skill: str) -> list[str]:
         if alias_key.lower() == skill.lower():
             terms.extend(aliases)
             break
-    if "/" in skill or " or " in skill.lower():
+    if "/" in skill and "a/b" not in skill.lower() or " or " in skill.lower():
         terms.extend(re.split(r"\s*/\s*|\s+or\s+", skill.lower()))
         for part in re.split(r"\s*/\s*|\s+or\s+", skill):
             for alias_key, aliases in SKILL_ALIASES.items():

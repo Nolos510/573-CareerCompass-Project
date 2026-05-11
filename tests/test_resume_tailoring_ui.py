@@ -7,12 +7,15 @@ from app import (
     derive_job_post_keywords,
     extract_resume_education,
     extract_resume_identity,
+    friendly_tailoring_error,
+    resume_export_allowed,
     resume_format_template_key,
     resume_format_metadata,
     validate_interview_answer,
     validate_job_post_for_tailoring,
     validate_resume_for_analysis,
 )
+from careercompass.fallbacks import assess_skill_evidence
 from careercompass.agents import run_career_analysis
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
 
@@ -51,8 +54,8 @@ class ResumeTailoringUiTest(unittest.TestCase):
         )
         by_skill = {row["Skill"]: row for row in rows}
 
-        self.assertEqual(by_skill["SQL"]["Resume Evidence"], "Mentioned")
-        self.assertEqual(by_skill["Tableau"]["Resume Evidence"], "Strong Evidence")
+        self.assertEqual(by_skill["SQL"]["Resume Evidence"], "Mentioned only")
+        self.assertEqual(by_skill["Tableau"]["Resume Evidence"], "Strong evidence")
         self.assertIn("Python", by_skill)
         self.assertEqual(by_skill["Python"]["Found In"], "Coursework")
         self.assertIn("Gap Action", by_skill["Requirements gathering"])
@@ -164,10 +167,117 @@ class ResumeTailoringUiTest(unittest.TestCase):
         self.assertIn("Maya Rivera", tailored)
         self.assertIn("maya@example.com", tailored)
         self.assertIn("State University - B.A. Communications", tailored)
-        self.assertIn("NEEDS EVIDENCE BEFORE ADDING", tailored)
+        self.assertIn("DO NOT ADD UNTIL YOU HAVE EVIDENCE", tailored)
         self.assertIn("A/B testing", tailored)
         self.assertNotIn("Emphasized A/B testing", tailored)
         self.assertTrue(any(row["Safe To Add"] == "Needs evidence" for row in changes))
+
+    def test_missing_claims_do_not_enter_resume_body(self):
+        saved_resume = """
+        Maya Rivera
+        maya@example.com
+
+        EXPERIENCE
+        - Coordinated student club events and wrote weekly member updates.
+
+        EDUCATION
+        State University - B.A. Communications
+        """
+        selected = [
+            {
+                "before": "Resume evidence not found",
+                "after": "Built a campaign performance dashboard for a launch copy experiment.",
+                "keywords_added": ["Campaign performance", "Launch copy", "A/B testing"],
+            }
+        ]
+        tailored = build_tailored_resume_draft(
+            analysis=self.analysis,
+            saved_resume=saved_resume,
+            job_post="Product Marketing Associate\nNeeds campaign performance, launch copy, and A/B testing.",
+            format_name="Experience-forward resume",
+            selected_suggestions=selected,
+        )
+        resume_body = tailored.split("DO NOT ADD UNTIL YOU HAVE EVIDENCE")[0]
+
+        self.assertNotIn("Built a campaign performance dashboard", resume_body)
+        self.assertIn("DO NOT ADD UNTIL YOU HAVE EVIDENCE", tailored)
+
+    def test_safe_edits_only_excludes_mentioned_suggestions_from_body(self):
+        saved_resume = """
+        Jordan Lee
+        jordan@example.com
+
+        SKILLS
+        Product marketing
+
+        EXPERIENCE
+        - Coordinated student club events and wrote weekly member updates.
+        """
+        selected = [
+            {
+                "before": "Coordinated student club events and wrote weekly member updates.",
+                "after": "Developed a product marketing brief for a student club launch.",
+                "keywords_added": ["Product marketing"],
+            }
+        ]
+        relaxed = build_tailored_resume_draft(
+            analysis=self.analysis,
+            saved_resume=saved_resume,
+            job_post="Product Marketing Associate\nNeeds product marketing experience.",
+            format_name="Experience-forward resume",
+            selected_suggestions=selected,
+            safe_edits_only=False,
+        )
+        strict = build_tailored_resume_draft(
+            analysis=self.analysis,
+            saved_resume=saved_resume,
+            job_post="Product Marketing Associate\nNeeds product marketing experience.",
+            format_name="Experience-forward resume",
+            selected_suggestions=selected,
+            safe_edits_only=True,
+        )
+
+        self.assertIn("Developed a product marketing brief", relaxed.split("DO NOT ADD UNTIL YOU HAVE EVIDENCE")[0])
+        self.assertNotIn("Developed a product marketing brief", strict.split("DO NOT ADD UNTIL YOU HAVE EVIDENCE")[0])
+
+    def test_keyword_extraction_filters_generic_noise(self):
+        job_post = """
+        Product Marketing Associate
+        The product marketing associate will support product marketing analysis and product work.
+        Own go-to-market planning, positioning, launch copy, campaign performance, customer research,
+        content calendar work, conversion funnel reviews, A/B testing, and Figma collaboration.
+        """
+        names = {item["Keyword"] for item in derive_job_post_keywords(job_post, self.analysis)}
+
+        self.assertIn("Go-to-market", names)
+        self.assertIn("Positioning", names)
+        self.assertIn("A/B testing", names)
+        self.assertNotIn("product", names)
+        self.assertNotIn("marketing", names)
+        self.assertNotIn("analysis", names)
+        self.assertNotIn("associate", names)
+
+    def test_ab_testing_not_strong_from_figma_wireframes(self):
+        evidence = assess_skill_evidence(
+            "A/B testing",
+            "Built Figma wireframes to improve conversion from free trial to paid plans.",
+            [],
+        )
+
+        self.assertNotEqual(evidence["status"], "Strong Evidence")
+
+    def test_export_gate_requires_review_when_unsupported_claims_exist(self):
+        rows = [{"Safe To Add": "Yes"}, {"Safe To Add": "Needs evidence"}]
+
+        self.assertFalse(resume_export_allowed(rows, reviewed=False))
+        self.assertTrue(resume_export_allowed(rows, reviewed=True))
+        self.assertTrue(resume_export_allowed([{"Safe To Add": "Yes"}], reviewed=False))
+
+    def test_friendly_tailoring_error_is_recoverable_copy(self):
+        message = friendly_tailoring_error(RuntimeError("session state crash"))
+
+        self.assertIn("recoverable", message)
+        self.assertIn("Generate tailored resume", message)
 
 
 if __name__ == "__main__":

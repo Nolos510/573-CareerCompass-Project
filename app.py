@@ -641,6 +641,10 @@ def initialize_state() -> None:
         "custom_resume_template": "",
         "resume_profile_resume_editor": "",
         "resume_profile_source_snapshot": "",
+        "safe_edits_only": False,
+        "resume_regeneration_mode": "Standard",
+        "resume_export_reviewed": False,
+        "tailoring_error": "",
         "tailored_resume_history": [],
         "tailoring_summary": None,
         "tailoring_change_rows": [],
@@ -681,6 +685,10 @@ def reset_demo_profile() -> None:
     st.session_state.custom_resume_template = ""
     st.session_state.resume_profile_resume_editor = SAMPLE_RESUME
     st.session_state.resume_profile_source_snapshot = SAMPLE_RESUME
+    st.session_state.safe_edits_only = False
+    st.session_state.resume_regeneration_mode = "Standard"
+    st.session_state.resume_export_reviewed = False
+    st.session_state.tailoring_error = ""
     st.session_state.tailored_resume_history = []
     st.session_state.tailoring_summary = None
     st.session_state.tailoring_change_rows = []
@@ -700,10 +708,10 @@ def clear_resume_job_post() -> None:
     st.session_state.resume_target_job_title = ""
     st.session_state.resume_target_job_url = ""
     st.session_state.resume_target_job_description = ""
-    st.session_state.target_job_company = ""
-    st.session_state.target_job_title = ""
-    st.session_state.target_job_url = ""
-    st.session_state.target_job_description = ""
+    st.session_state.resume_export_reviewed = False
+    st.session_state.tailoring_error = ""
+    st.session_state.tailoring_summary = None
+    st.session_state.tailoring_change_rows = []
 
 
 def upload_metadata(filename: str, text: str) -> dict:
@@ -767,10 +775,7 @@ def sync_resume_target_job_from_profile() -> None:
 
 
 def sync_profile_target_job_from_resume() -> None:
-    st.session_state.target_job_company = st.session_state.resume_target_job_company
-    st.session_state.target_job_title = st.session_state.resume_target_job_title
-    st.session_state.target_job_url = st.session_state.resume_target_job_url
-    st.session_state.target_job_description = st.session_state.resume_target_job_description
+    st.session_state.generated_resume_target_job = target_job_from_session("resume_target_job")
 
 
 def sample_demo_inputs() -> dict:
@@ -945,6 +950,20 @@ def render_inputs() -> dict:
             key="resume_text_area",
             help="You can edit uploaded text here before running the analysis.",
         )
+        if resume_text.strip():
+            pasted_metadata = upload_metadata("Pasted or edited resume text", resume_text)
+            st.success(
+                "Resume added: "
+                f"{pasted_metadata['Words']} words, "
+                f"{pasted_metadata['Characters']} characters, "
+                f"detected sections: {pasted_metadata['Detected sections']}."
+            )
+            with st.expander("Current resume text confirmation", expanded=False):
+                st.dataframe(
+                    pd.DataFrame([pasted_metadata]),
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
     with right:
         role_options = available_target_roles() + ["Custom role"]
@@ -1079,6 +1098,33 @@ def render_progress() -> None:
     status.success("Career strategy generated.")
 
 
+def render_tailoring_progress() -> None:
+    steps = [
+        "Parsing job post",
+        "Matching resume evidence",
+        "Drafting safe edits",
+        "Checking unsupported claims",
+    ]
+    progress = st.progress(0)
+    status = st.empty()
+    for index, step in enumerate(steps, start=1):
+        status.write(f"{step}...")
+        progress.progress(index / len(steps))
+        time.sleep(0.12)
+    status.success("Tailored resume generated.")
+
+
+def friendly_tailoring_error(error: Exception) -> str:
+    return (
+        "Resume tailoring hit a recoverable issue. Your saved resume and job post are still here; "
+        "review the fields and try Generate tailored resume again."
+    )
+
+
+def resume_export_allowed(change_rows: list[dict], reviewed: bool) -> bool:
+    return not any(row.get("Safe To Add") != "Yes" for row in change_rows) or reviewed
+
+
 def render_dashboard(analysis: dict) -> None:
     st.header("Career Readiness Console")
     st.markdown(
@@ -1087,9 +1133,9 @@ def render_dashboard(analysis: dict) -> None:
     )
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Role signal", f"{analysis['match_percentage']}%")
-    c2.metric("Priority alerts", analysis["gap_counts"]["high"])
-    c3.metric("Resume signal", f"{analysis['keyword_coverage']}%")
+    c1.metric("Role fit", f"{analysis['match_percentage']}%")
+    c2.metric("Top gaps", analysis["gap_counts"]["high"])
+    c3.metric("Resume match", f"{analysis['keyword_coverage']}%")
     c4.metric("Interview status", analysis["interview_readiness"])
 
     st.subheader("Recommended Next Moves")
@@ -1267,18 +1313,21 @@ def render_resume(analysis: dict) -> None:
     else:
         st.info("Paste a job post to add job-specific keywords to the existing CareerCompass resume targets.")
 
-    evidence_map = build_skill_evidence_map(
-        analysis=analysis,
-        resume_text=st.session_state.resume_text_area,
-        coursework=merge_coursework(
-            st.session_state.coursework_selection,
-            st.session_state.additional_coursework,
-        ),
-        job_post=job_post,
-    )
     st.subheader("Signal Map")
     st.caption("Use this to see what CareerCompass found before generating the tailored resume.")
-    st.dataframe(pd.DataFrame(evidence_map), use_container_width=True, hide_index=True)
+    if job_post:
+        evidence_map = build_skill_evidence_map(
+            analysis=analysis,
+            resume_text=st.session_state.resume_text_area,
+            coursework=merge_coursework(
+                st.session_state.coursework_selection,
+                st.session_state.additional_coursework,
+            ),
+            job_post=job_post,
+        )
+        st.dataframe(pd.DataFrame(evidence_map), use_container_width=True, hide_index=True)
+    else:
+        st.info("Paste the full posting, not just the title, so we can compare responsibilities, qualifications, and keywords.")
 
     st.subheader("Choose a Resume Format")
     st.write("The selected format will restructure your saved resume for the pasted job post, not just apply a generic template.")
@@ -1387,9 +1436,27 @@ def render_resume(analysis: dict) -> None:
             )
 
     st.subheader("Generate Job-Specific Resume")
+    st.caption(
+        "Review every suggested edit before submitting. CareerCompass will flag unsupported claims, but you are responsible for final accuracy."
+    )
+    mode_col, safety_col = st.columns([1, 1])
+    with mode_col:
+        regeneration_mode = st.selectbox(
+            "Regenerate mode",
+            options=["Standard", "Stricter evidence", "More concise", "ATS-focused"],
+            key="resume_regeneration_mode",
+            help="Use stricter evidence for conservative drafts, concise for shorter language, or ATS-focused for keyword-forward structure.",
+        )
+    with safety_col:
+        safe_edits_only = st.toggle(
+            "Safe edits only",
+            key="safe_edits_only",
+            help="When on, only strongly evidenced edits can enter the resume body. Missing claims always stay out.",
+        )
+
     generate_col, clear_col = st.columns([1, 1])
     with generate_col:
-        if st.button("Tailor resume to this job", type="primary"):
+        if st.button("Generate tailored resume", type="primary"):
             resume_error = validate_resume_for_analysis(st.session_state.resume_text_area)
             job_error = validate_job_post_for_tailoring(job_post)
             if resume_error:
@@ -1397,55 +1464,88 @@ def render_resume(analysis: dict) -> None:
             elif job_error:
                 st.warning(job_error)
             else:
-                sync_profile_target_job_from_resume()
-                change_rows = build_tailoring_change_summary(
-                    saved_resume=st.session_state.resume_text_area,
-                    analysis=analysis,
-                    job_post=job_post,
-                    selected_suggestions=selected_suggestions,
-                    coursework=merge_coursework(
+                try:
+                    st.session_state.generated_resume_target_job = target_job
+                    st.session_state.resume_export_reviewed = False
+                    st.session_state.tailoring_error = ""
+                    render_tailoring_progress()
+                    coursework = merge_coursework(
                         st.session_state.coursework_selection,
                         st.session_state.additional_coursework,
-                    ),
-                )
-                tailored = build_tailored_resume_draft(
-                    analysis=analysis,
-                    saved_resume=st.session_state.resume_text_area,
-                    job_post=job_post,
-                    format_name=format_name,
-                    custom_template=custom_template,
-                    selected_suggestions=selected_suggestions,
-                )
-                st.session_state.resume_draft = tailored
-                st.session_state.tailoring_change_rows = change_rows
-                st.session_state.tailoring_summary = summarize_tailoring_result(
-                    change_rows,
-                    derive_job_post_keywords(job_post, analysis),
-                )
-                st.session_state.tailored_resume_history = [
-                    {
-                        "Job": infer_job_title(job_post, analysis),
-                        "Format": format_name,
-                        "Keyword count": len(derive_job_post_keywords(job_post, analysis)),
-                    },
-                    *st.session_state.tailored_resume_history[:4],
-                ]
-                summary = st.session_state.tailoring_summary
-                st.success(
-                    f"Tailored resume generated. {summary['keywords']} keywords found, "
-                    f"{summary['revised_bullets']} safe revisions suggested, "
-                    f"{summary['missing_skills']} missing skills flagged."
-                )
+                    )
+                    change_rows = build_tailoring_change_summary(
+                        saved_resume=st.session_state.resume_text_area,
+                        analysis=analysis,
+                        job_post=job_post,
+                        selected_suggestions=selected_suggestions,
+                        coursework=coursework,
+                        safe_edits_only=safe_edits_only or regeneration_mode == "Stricter evidence",
+                    )
+                    tailored = build_tailored_resume_draft(
+                        analysis=analysis,
+                        saved_resume=st.session_state.resume_text_area,
+                        job_post=job_post,
+                        format_name=format_name,
+                        custom_template=custom_template,
+                        selected_suggestions=selected_suggestions,
+                        coursework=coursework,
+                        safe_edits_only=safe_edits_only or regeneration_mode == "Stricter evidence",
+                        regeneration_mode=regeneration_mode,
+                        target_job=target_job,
+                    )
+                    job_keywords = derive_job_post_keywords(job_post, analysis)
+                    st.session_state.resume_draft = tailored
+                    st.session_state.tailoring_change_rows = change_rows
+                    st.session_state.tailoring_summary = summarize_tailoring_result(
+                        change_rows,
+                        job_keywords,
+                    )
+                    st.session_state.tailored_resume_history = [
+                        {
+                            "Company": target_job.get("company") or "Target company",
+                            "Job": infer_job_title(job_post, analysis, target_job),
+                            "Format": format_name,
+                            "Mode": regeneration_mode,
+                            "Keyword count": len(job_keywords),
+                            "Draft": tailored,
+                        },
+                        *st.session_state.tailored_resume_history[:4],
+                    ]
+                    summary = st.session_state.tailoring_summary
+                    st.success(
+                        f"Tailored resume generated. Found {summary['keywords']} job keywords, "
+                        f"revised {summary['revised_bullets']} supported bullets, "
+                        f"and flagged {summary['missing_skills']} claims that need evidence."
+                    )
+                except Exception as error:
+                    st.session_state.tailoring_error = friendly_tailoring_error(error)
+                    st.error(st.session_state.tailoring_error)
     with clear_col:
         if st.button("Clear job post for next application", on_click=clear_resume_job_post):
             st.success("Job post cleared. Your saved profile resume is still available.")
 
     if st.session_state.tailored_resume_history:
         st.caption("Recent tailored resume runs")
-        st.dataframe(pd.DataFrame(st.session_state.tailored_resume_history), use_container_width=True, hide_index=True)
+        history_display = [
+            {key: value for key, value in item.items() if key != "Draft"}
+            for item in st.session_state.tailored_resume_history
+        ]
+        st.dataframe(pd.DataFrame(history_display), use_container_width=True, hide_index=True)
+        history_options = list(range(len(st.session_state.tailored_resume_history)))
+        selected_history = st.selectbox(
+            "Reload a recent tailored draft",
+            options=history_options,
+            format_func=lambda index: (
+                f"{st.session_state.tailored_resume_history[index]['Job']} - "
+                f"{st.session_state.tailored_resume_history[index]['Company']}"
+            ),
+        )
+        if st.button("Reload selected draft"):
+            st.session_state.resume_draft = st.session_state.tailored_resume_history[selected_history]["Draft"]
+            st.success("Selected tailored draft loaded into the editor.")
 
     if st.session_state.tailoring_change_rows:
-        st.subheader("Original to Tailored Change Summary")
+        st.subheader("Review Changes Before Applying")
         st.dataframe(pd.DataFrame(st.session_state.tailoring_change_rows), use_container_width=True, hide_index=True)
 
     if not st.session_state.resume_draft:
@@ -1456,24 +1556,43 @@ def render_resume(analysis: dict) -> None:
         "Draft resume",
         value=st.session_state.resume_draft,
         height=520,
-        help="Edit this directly before exporting.",
+        help="Review every suggested edit before submitting. Unsupported claims stay in their own section.",
     )
 
-    download_col1, download_col2 = st.columns([1, 1])
-    with download_col1:
-        st.download_button(
-            "Export resume as TXT",
-            data=st.session_state.resume_draft.encode("utf-8"),
-            file_name="careercompass_resume.txt",
-            mime="text/plain",
+    if st.session_state.tailoring_summary:
+        unsupported_count = st.session_state.tailoring_summary.get("missing_skills", 0)
+        if unsupported_count:
+            st.warning(
+                f"{unsupported_count} claims are flagged under DO NOT ADD UNTIL YOU HAVE EVIDENCE. "
+                "Review them before exporting."
+            )
+            st.checkbox(
+                "I reviewed the unsupported claims and understand they should not be added without evidence.",
+                key="resume_export_reviewed",
+            )
+        export_allowed = resume_export_allowed(
+            st.session_state.tailoring_change_rows,
+            st.session_state.get("resume_export_reviewed", False),
         )
-    with download_col2:
-        st.download_button(
-            "Export resume as DOCX",
-            data=build_docx_bytes(st.session_state.resume_draft),
-            file_name="careercompass_resume.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
+        download_col1, download_col2 = st.columns([1, 1])
+        with download_col1:
+            st.download_button(
+                "Export resume as TXT",
+                data=st.session_state.resume_draft.encode("utf-8"),
+                file_name="careercompass_resume.txt",
+                mime="text/plain",
+                disabled=not export_allowed,
+            )
+        with download_col2:
+            st.download_button(
+                "Export resume as DOCX",
+                data=build_docx_bytes(st.session_state.resume_draft),
+                file_name="careercompass_resume.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                disabled=not export_allowed,
+            )
+    else:
+        st.info("Generate a tailored resume to unlock export actions for this job.")
 
 
 def render_interview(analysis: dict) -> None:
@@ -1648,7 +1767,7 @@ def main() -> None:
 
     inputs = render_inputs()
 
-    if st.button("Analyze my resume", type="primary"):
+    if st.button("Analyze resume and job fit", type="primary"):
         validation_error = validate_resume_for_analysis(inputs["resume_text"])
         if validation_error:
             st.session_state.analysis_validation_error = validation_error
@@ -1699,15 +1818,42 @@ JOB_KEYWORD_ALIASES = {
     "Power BI": ["power bi", "powerbi"],
     "Dashboarding": ["dashboard", "dashboards", "reporting", "visualization"],
     "Data analysis": ["data analysis", "analytics", "insights", "trend"],
-    "A/B testing": ["a/b", "experiment", "experimentation", "conversion"],
+    "A/B testing": ["a/b testing", "ab testing", "a/b test", "ab test", "experiment", "experimentation"],
+    "Campaign performance": ["campaign performance", "campaign metrics", "marketing metrics"],
+    "Content calendar": ["content calendar", "editorial calendar"],
+    "Conversion funnel": ["conversion funnel", "conversion optimization", "funnel"],
+    "Figma": ["figma"],
+    "Go-to-market": ["go-to-market", "go to market", "gtm"],
+    "Launch copy": ["launch copy", "launch messaging", "launch content"],
+    "Positioning": ["positioning", "value proposition", "messaging"],
     "Requirements gathering": ["requirements", "user stories", "acceptance criteria"],
     "Stakeholder communication": ["stakeholder", "cross-functional", "presentation", "executive"],
     "Project management": ["project management", "timeline", "milestone", "delivery"],
     "Agile / Scrum": ["agile", "scrum", "sprint", "backlog"],
     "Risk management": ["risk", "mitigation", "blocker", "dependency"],
-    "Customer insight": ["customer", "user research", "persona", "voice of customer"],
+    "Customer insight": ["customer insight", "customer research", "user research", "persona", "voice of customer"],
     "Product marketing": ["product marketing", "launch", "campaign", "positioning"],
     "Process improvement": ["process improvement", "workflow", "automation", "operational"],
+}
+
+
+GENERIC_JOB_KEYWORD_WORDS = {
+    "analysis",
+    "applicant",
+    "associate",
+    "business",
+    "candidate",
+    "company",
+    "customer",
+    "experience",
+    "marketing",
+    "product",
+    "requirements",
+    "responsibilities",
+    "role",
+    "skills",
+    "team",
+    "work",
 }
 
 
@@ -1855,13 +2001,21 @@ def build_skill_evidence_map(
             {
                 "Skill": skill,
                 "Job Demand": demand,
-                "Resume Evidence": evidence["status"],
+                "Resume Evidence": evidence_status_label(evidence["status"]),
                 "Found In": evidence["evidence_source"],
                 "Evidence Excerpt": evidence["evidence_excerpt"],
                 "Gap Action": skill_gap_action(skill, evidence["status"], demand),
             }
         )
     return rows
+
+
+def evidence_status_label(status: str) -> str:
+    return {
+        "Strong Evidence": "Strong evidence",
+        "Mentioned": "Mentioned only",
+        "Missing": "Needs proof",
+    }.get(status, status)
 
 
 def skill_gap_action(skill: str, status: str, demand: str) -> str:
@@ -1886,7 +2040,8 @@ def job_keyword_usage(keyword: str) -> str:
 
 
 def extract_repeated_job_phrases(job_post: str) -> list[str]:
-    words = re.findall(r"[A-Za-z][A-Za-z+#/.-]{2,}", job_post.lower())
+    normalized = normalize_text(job_post)
+    words = re.findall(r"[A-Za-z][A-Za-z+#/.-]{2,}", normalized)
     stop_words = {
         "and",
         "the",
@@ -1907,7 +2062,29 @@ def extract_repeated_job_phrases(job_post: str) -> list[str]:
         "skills",
         "experience",
         "ability",
+        *GENERIC_JOB_KEYWORD_WORDS,
     }
+    phrases = []
+    for label, aliases in JOB_KEYWORD_ALIASES.items():
+        if label in {"SQL", "Python", "Excel", "Tableau", "Power BI"}:
+            continue
+        if any(alias.lower() in normalized for alias in aliases):
+            phrases.append(label)
+
+    phrase_counts = {}
+    for size in (3, 2):
+        for index in range(0, max(len(words) - size + 1, 0)):
+            chunk = words[index : index + size]
+            if any(word in stop_words or len(word) < 4 for word in chunk):
+                continue
+            phrase = " ".join(chunk)
+            phrase_counts[phrase] = phrase_counts.get(phrase, 0) + 1
+
+    ranked_phrases = sorted(phrase_counts.items(), key=lambda item: (-item[1], item[0]))
+    for phrase, count in ranked_phrases:
+        if count >= 2 and phrase not in {item.lower() for item in phrases}:
+            phrases.append(phrase)
+
     counts = {}
     for word in words:
         if word in stop_words or len(word) < 4:
@@ -1915,19 +2092,33 @@ def extract_repeated_job_phrases(job_post: str) -> list[str]:
         counts[word] = counts.get(word, 0) + 1
 
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    return [word.title() if word in {"sql", "python", "tableau"} else word for word, count in ranked if count >= 2][:5]
+    for word, count in ranked:
+        if count >= 3 and word not in {item.lower() for item in phrases}:
+            phrases.append(word.title() if word in {"sql", "python", "tableau"} else word)
+
+    return phrases[:6]
 
 
 def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
-def infer_job_title(job_post: str, analysis: dict) -> str:
+def infer_job_title(job_post: str, analysis: dict, target_job: dict[str, str] | None = None) -> str:
+    if target_job and target_job.get("title"):
+        return clean_job_title(target_job["title"])
     lines = [line.strip(" -|") for line in job_post.splitlines() if line.strip()]
     for line in lines[:6]:
-        if 3 <= len(line) <= 80 and not line.endswith("."):
-            return line
+        if 3 <= len(line) <= 80 and not line.endswith(".") and not line.lower().startswith(("http://", "https://")):
+            return clean_job_title(line)
     return analysis.get("target_role") or analysis.get("role_label") or "Target job"
+
+
+def clean_job_title(title: str) -> str:
+    title = re.sub(r"\s+", " ", title).strip(" -|")
+    parts = [part.strip() for part in re.split(r"\s+-\s+|\s+\|\s+", title) if part.strip()]
+    if parts:
+        return parts[0]
+    return title
 
 
 def parse_resume_sections(saved_resume: str) -> dict[str, list[str]]:
@@ -2073,7 +2264,7 @@ def split_inline_items(lines: list[str]) -> list[str]:
     for line in lines:
         chunks = re.split(r",|;|\|", line)
         for chunk in chunks:
-            item = chunk.strip()
+            item = clean_skill_label(chunk)
             if item and item not in items:
                 items.append(item)
     return items or lines
@@ -2109,6 +2300,7 @@ def build_tailoring_change_summary(
     job_post: str,
     selected_suggestions: list[dict] | None = None,
     coursework: list[str] | None = None,
+    safe_edits_only: bool = False,
 ) -> list[dict]:
     coursework = coursework or []
     rows = []
@@ -2123,7 +2315,10 @@ def build_tailoring_change_summary(
         ]
         before = suggestion.get("before", "")
         before_in_resume = bool(before and normalize_text(before) in resume_lower)
-        safe = before_in_resume or any(status != "Missing" for status in evidence_statuses)
+        safe = any(
+            evidence_status_allows_body(status, safe_edits_only)
+            for status in evidence_statuses
+        ) or (before_in_resume and (not safe_edits_only or not evidence_statuses))
         rows.append(
             {
                 "Original": before or "Resume evidence not found",
@@ -2157,12 +2352,31 @@ def summarize_tailoring_result(change_rows: list[dict], job_keywords: list[dict]
     }
 
 
-def suggestion_is_supported(suggestion: dict, saved_resume: str, keywords: list[str]) -> bool:
+def evidence_status_allows_body(status: str, safe_edits_only: bool = False) -> bool:
+    if status == "Strong Evidence":
+        return True
+    if status == "Mentioned":
+        return not safe_edits_only
+    return False
+
+
+def suggestion_is_supported(
+    suggestion: dict,
+    saved_resume: str,
+    coursework: list[str],
+    safe_edits_only: bool = False,
+) -> bool:
     before = normalize_text(suggestion.get("before", ""))
     resume_lower = normalize_text(saved_resume)
-    if before and before in resume_lower:
+    if before and before in resume_lower and not safe_edits_only:
         return True
-    return any(assess_skill_evidence(keyword, saved_resume, [])["status"] != "Missing" for keyword in keywords)
+    return any(
+        evidence_status_allows_body(
+            assess_skill_evidence(keyword, saved_resume, coursework)["status"],
+            safe_edits_only,
+        )
+        for keyword in suggestion.get("keywords_added", [])
+    )
 
 
 def build_tailored_resume_draft(
@@ -2172,40 +2386,56 @@ def build_tailored_resume_draft(
     format_name: str,
     custom_template: str = "",
     selected_suggestions: list[dict] | None = None,
+    coursework: list[str] | None = None,
+    safe_edits_only: bool = False,
+    regeneration_mode: str = "Standard",
+    target_job: dict[str, str] | None = None,
 ) -> str:
+    coursework = coursework or []
     role = analysis.get("role_label", analysis.get("target_role", "Target Role"))
-    job_title = infer_job_title(job_post, analysis)
+    job_title = infer_job_title(job_post, analysis, target_job)
+    company = (target_job or {}).get("company", "").strip()
     keywords = keyword_names(analysis, job_post)
     evidence_by_keyword = {
-        keyword: assess_skill_evidence(keyword, saved_resume, [])
+        keyword: assess_skill_evidence(keyword, saved_resume, coursework)
         for keyword in keywords
     }
     supported_keywords = [
-        keyword for keyword, evidence in evidence_by_keyword.items() if evidence["status"] != "Missing"
+        keyword
+        for keyword, evidence in evidence_by_keyword.items()
+        if evidence_status_allows_body(evidence["status"], safe_edits_only)
     ]
     missing_keywords = [
-        keyword for keyword, evidence in evidence_by_keyword.items() if evidence["status"] == "Missing"
+        keyword
+        for keyword, evidence in evidence_by_keyword.items()
+        if not evidence_status_allows_body(evidence["status"], safe_edits_only)
     ]
     keyword_line = ", ".join((supported_keywords or keywords)[:8])
     identity = extract_resume_identity(saved_resume)
     education_lines = extract_resume_education(saved_resume)
     saved_skills = extract_resume_skills(saved_resume)
     source_bullets = extract_resume_bullets(saved_resume)
-    suggestion_bullets = [item["after"] for item in selected_suggestions or []]
-    if not suggestion_bullets:
-        suggestion_bullets = [
-            item["after"]
-            for item in analysis.get("resume_recommendations", [])[:3]
-            if suggestion_is_supported(item, saved_resume, supported_keywords)
-        ]
+    candidate_suggestions = selected_suggestions or analysis.get("resume_recommendations", [])[:4]
+    safe_suggestions = [
+        item
+        for item in candidate_suggestions
+        if suggestion_is_supported(item, saved_resume, coursework, safe_edits_only)
+    ]
+    suggestion_limit = 2 if regeneration_mode == "More concise" else 4
+    suggestion_bullets = [item["after"] for item in safe_suggestions[:suggestion_limit]]
 
     targeted_bullets = tailor_bullets(source_bullets, suggestion_bullets)
     candidate_label = f"{role} candidate" if role.lower() in job_title.lower() else "candidate"
-    summary = (
-        f"Early-career {candidate_label} targeting {job_title} with evidence across "
-        f"{keyword_line or 'relevant coursework and transferable experience'}. "
-        "Keeps claims grounded in the supplied resume."
-    )
+    target_phrase = f"for {job_title}" if job_title else f"for {role}"
+    company_phrase = f" at {company}" if company else ""
+    if regeneration_mode == "More concise":
+        summary = f"Early-career {candidate_label} prepared {target_phrase}{company_phrase}, with supported evidence in {keyword_line or 'transferable experience'}."
+    else:
+        summary = (
+            f"Early-career {candidate_label} prepared {target_phrase}{company_phrase}. "
+            f"Resume evidence supports {keyword_line or 'relevant coursework and transferable experience'}, "
+            "with unsupported claims separated for review."
+        )
     header = identity["name"]
     if identity["contact"]:
         header += f"\n{identity['contact']}"
@@ -2214,9 +2444,10 @@ def build_tailored_resume_draft(
     skills = ", ".join(skills_with_resume)
     improvements = "\n".join(f"- {bullet}" for bullet in suggestion_bullets[:4]) or "- No unsupported rewrite was inserted automatically."
     needs_evidence = "\n".join(
-        f"- {keyword}: add truthful project, coursework, or work evidence before claiming this skill."
+        f"- {keyword}: add truthful project, coursework, or work evidence before claiming this in the resume body."
         for keyword in missing_keywords[:8]
     ) or "- No unsupported job-post keywords were flagged."
+    source_evidence_limit = 3 if regeneration_mode == "More concise" else 4
 
     section_map = {
         "HEADER": header,
@@ -2225,9 +2456,9 @@ def build_tailored_resume_draft(
         "EXPERIENCE": "EXPERIENCE\n" + "\n".join(f"- {bullet}" for bullet in targeted_bullets),
         "PROJECT EXPERIENCE": "PROJECT EXPERIENCE\n" + "\n".join(f"- {bullet}" for bullet in targeted_bullets),
         "EDUCATION": f"EDUCATION\n{education}",
-        "SOURCE RESUME EVIDENCE": "SOURCE RESUME EVIDENCE\n" + "\n".join(f"- {bullet}" for bullet in source_bullets[:4]),
+        "SOURCE RESUME EVIDENCE": "SOURCE RESUME EVIDENCE\n" + "\n".join(f"- {bullet}" for bullet in source_bullets[:source_evidence_limit]),
         "CAREERCOMPASS IMPROVEMENTS": f"CAREERCOMPASS IMPROVEMENTS\n{improvements}",
-        "NEEDS EVIDENCE BEFORE ADDING": f"NEEDS EVIDENCE BEFORE ADDING\n{needs_evidence}",
+        "DO NOT ADD UNTIL YOU HAVE EVIDENCE": f"DO NOT ADD UNTIL YOU HAVE EVIDENCE\n{needs_evidence}",
         "JOB POST TARGETS": "JOB POST TARGETS\n" + "\n".join(f"- {keyword}" for keyword in keywords[:8]),
     }
 
@@ -2237,18 +2468,20 @@ def build_tailored_resume_draft(
         for section in custom_sections:
             rendered.append(section_map.get(section, f"{section}\nAdd content here using saved resume evidence and job-post keywords."))
         rendered.append(section_map["CAREERCOMPASS IMPROVEMENTS"])
-        rendered.append(section_map["NEEDS EVIDENCE BEFORE ADDING"])
+        rendered.append(section_map["DO NOT ADD UNTIL YOU HAVE EVIDENCE"])
         rendered.append(section_map["JOB POST TARGETS"])
         return "\n\n".join(rendered).strip() + "\n"
 
-    if format_name == "Project-forward resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "NEEDS EVIDENCE BEFORE ADDING", "JOB POST TARGETS"]
+    if regeneration_mode == "ATS-focused":
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE", "JOB POST TARGETS"]
+    elif format_name == "Project-forward resume":
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE", "JOB POST TARGETS"]
     elif format_name == "Experience-forward resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "NEEDS EVIDENCE BEFORE ADDING"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE"]
     elif format_name == "Skills matrix resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "NEEDS EVIDENCE BEFORE ADDING"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE"]
     else:
-        order = ["HEADER", "SUMMARY", "EXPERIENCE", "EDUCATION", "TARGETED SKILLS", "CAREERCOMPASS IMPROVEMENTS", "NEEDS EVIDENCE BEFORE ADDING", "JOB POST TARGETS"]
+        order = ["HEADER", "SUMMARY", "EXPERIENCE", "EDUCATION", "TARGETED SKILLS", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE", "JOB POST TARGETS"]
 
     return "\n\n".join(section_map[section] for section in order).strip() + "\n"
 
@@ -2263,10 +2496,14 @@ def tailor_bullets(source_bullets: list[str], suggestion_bullets: list[str]) -> 
 def merge_unique(primary: list[str], secondary: list[str]) -> list[str]:
     merged = []
     for item in [*primary, *secondary]:
-        cleaned = item.strip()
+        cleaned = clean_skill_label(item)
         if cleaned and cleaned.lower() not in {existing.lower() for existing in merged}:
             merged.append(cleaned)
     return merged
+
+
+def clean_skill_label(item: str) -> str:
+    return re.sub(r"\s+", " ", item).strip().strip(" .;:,")
 
 
 def build_resume_draft(
