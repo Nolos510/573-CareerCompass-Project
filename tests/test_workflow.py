@@ -159,6 +159,45 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         self.assertIn("Python", skill_names)
         self.assertIn("experimentation", skill_names)
 
+    def test_strong_skill_evidence_improves_keyword_coverage(self):
+        mentioned_result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": "Skills: SQL, Python, Tableau.",
+                "coursework": [],
+            }
+        )
+        strong_result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": (
+                    "Built SQL reports with joins and CTEs for weekly operations. "
+                    "Automated reporting with a Python script and presented Tableau dashboards to stakeholders."
+                ),
+                "coursework": [],
+            }
+        )
+
+        self.assertGreater(
+            strong_result["keyword_coverage"],
+            mentioned_result["keyword_coverage"],
+        )
+
+    def test_missing_high_demand_skills_remain_priority_gaps(self):
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": "Customer service and team leadership experience.",
+                "coursework": [],
+            }
+        )
+
+        self.assertIn(result["gap_report"][0]["Severity"], {"High", "Medium"})
+        self.assertNotEqual(result["gap_report"][0]["Current Evidence"].split(":", 1)[0], "Strong evidence found")
+
     def test_unknown_custom_role_still_returns_complete_output(self):
         result = run_career_analysis(
             {
