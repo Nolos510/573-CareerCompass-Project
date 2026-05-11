@@ -1,6 +1,7 @@
 import unittest
 
 from app import (
+    build_skill_evidence_map,
     build_tailored_resume_draft,
     derive_job_post_keywords,
     extract_resume_education,
@@ -35,6 +36,21 @@ class ResumeTailoringUiTest(unittest.TestCase):
         self.assertIn("SQL", names)
         self.assertIn("Tableau", names)
         self.assertIn("Requirements gathering", names)
+
+    def test_skill_evidence_map_explains_detected_and_missing_skills(self):
+        rows = build_skill_evidence_map(
+            analysis=self.analysis,
+            resume_text="Skills: SQL\nBuilt a Tableau dashboard to report KPIs to stakeholders.",
+            coursework=["Python Programming"],
+            job_post=self.job_post + "\nPython required for reporting automation.",
+        )
+        by_skill = {row["Skill"]: row for row in rows}
+
+        self.assertEqual(by_skill["SQL"]["Resume Evidence"], "Mentioned")
+        self.assertEqual(by_skill["Tableau"]["Resume Evidence"], "Strong Evidence")
+        self.assertIn("Python", by_skill)
+        self.assertEqual(by_skill["Python"]["Found In"], "Coursework")
+        self.assertIn("Gap Action", by_skill["Requirements gathering"])
 
     def test_tailored_resume_uses_saved_resume_and_job_post(self):
         tailored = build_tailored_resume_draft(

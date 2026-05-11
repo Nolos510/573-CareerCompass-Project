@@ -19,6 +19,7 @@ from careercompass.agents import (
     run_career_analysis,
 )
 from careercompass.demo_data import SAMPLE_COURSEWORK, SAMPLE_RESUME
+from careercompass.fallbacks import assess_skill_evidence
 from careercompass.rag import (
     available_coursework_options,
     available_locations,
@@ -708,6 +709,19 @@ def render_resume(analysis: dict) -> None:
     else:
         st.info("Paste a job post to add job-specific keywords to the existing CareerCompass resume targets.")
 
+    evidence_map = build_skill_evidence_map(
+        analysis=analysis,
+        resume_text=st.session_state.resume_text_area,
+        coursework=merge_coursework(
+            st.session_state.coursework_selection,
+            st.session_state.additional_coursework,
+        ),
+        job_post=job_post,
+    )
+    st.subheader("Skill Evidence Map")
+    st.caption("Use this to see what CareerCompass found before generating the tailored resume.")
+    st.dataframe(pd.DataFrame(evidence_map), use_container_width=True, hide_index=True)
+
     st.subheader("Choose a resume format")
     st.write("The selected format will restructure your saved resume for the pasted job post, not just apply a generic template.")
     format_options = [
@@ -1126,6 +1140,53 @@ def derive_job_post_keywords(job_post: str, analysis: dict, limit: int = 12) -> 
             break
 
     return rows[:limit]
+
+
+def build_skill_evidence_map(
+    analysis: dict,
+    resume_text: str,
+    coursework: list[str],
+    job_post: str = "",
+) -> list[dict]:
+    job_keywords = derive_job_post_keywords(job_post, analysis)
+    job_keyword_names = [item["Keyword"] for item in job_keywords]
+    market_skill_demand = {
+        item["Skill"]: item.get("Demand Signal", "Medium")
+        for item in analysis.get("market_skills", [])
+    }
+    candidate_skills = merge_unique(
+        job_keyword_names,
+        [
+            *[item["Keyword"] for item in analysis.get("keyword_targets", [])],
+            *market_skill_demand.keys(),
+        ],
+    )[:14]
+
+    rows = []
+    for skill in candidate_skills:
+        evidence = assess_skill_evidence(skill, resume_text, coursework)
+        demand = "Job post" if skill in job_keyword_names else market_skill_demand.get(skill, "Profile target")
+        rows.append(
+            {
+                "Skill": skill,
+                "Job Demand": demand,
+                "Resume Evidence": evidence["status"],
+                "Found In": evidence["evidence_source"],
+                "Evidence Excerpt": evidence["evidence_excerpt"],
+                "Gap Action": skill_gap_action(skill, evidence["status"], demand),
+            }
+        )
+    return rows
+
+
+def skill_gap_action(skill: str, status: str, demand: str) -> str:
+    if status == "Strong Evidence":
+        return "Keep it visible and quantify the outcome if possible."
+    if status == "Mentioned":
+        return f"Add a bullet showing how you used {skill} in a project, job, or coursework deliverable."
+    if demand == "Job post":
+        return f"Add truthful {skill} evidence or avoid over-claiming it for this application."
+    return f"Build or document one small proof point for {skill}."
 
 
 def job_keyword_usage(keyword: str) -> str:
