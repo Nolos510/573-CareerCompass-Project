@@ -573,3 +573,26 @@ Verification:
 - Container logs showed Streamlit serving on `http://localhost:8501`.
 - `Invoke-WebRequest http://localhost:8501` -> `HTTP 200 OK`.
 - Stopped the temporary `careercompass-verify` container after verification.
+
+### 2026-05-12 - Codex - Merged TM4 customer UI into main
+
+Changed files:
+
+- Merged `tm4-frontend-demo-ux-followup` into `main` with merge commit `b163df6`.
+- `app.py` now includes the latest customer-facing header, hidden demo/dev chrome, Target Job Posting flow, job-fit dashboard language, safe resume-tailoring review states, and related UI polish.
+- `tests/test_resume_tailoring_ui.py` includes the latest UI/trust-flow regression coverage.
+- Deleted local merged TM4 branches `tm4-frontend-demo-ux-followup` and `tm4-frontend-demo-polish-ux-fixes`.
+- Deleted remote merged branch `origin/tm4-frontend-demo-ux-followup`.
+
+Verification:
+
+- Checked live remote `main` before and after push.
+- `C:\Users\knolo\anaconda3\python.exe -m unittest discover -s tests -p 'test*.py' -v` -> 64 passed.
+- `C:\Users\knolo\anaconda3\python.exe -m compileall app.py careercompass tests` -> passed.
+- Streamlit AppTest initial load -> 0 exceptions; Windows temp cleanup emitted the known post-run permission warning after success.
+- `Invoke-WebRequest http://localhost:8506/` -> `200 OK`.
+
+Notes:
+
+- Remote `main` now points to `b163df6939c8aa67ec6ae5578c2b79a07fe29b4f`.
+- `origin/tm4-frontend-demo-polish` still exists at `a0f2d07` with unrelated/unmerged history and was not deleted by Codex because deleting it was blocked as a destructive shared-repo action. Delete it only with explicit team approval.
