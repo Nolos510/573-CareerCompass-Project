@@ -622,6 +622,15 @@ INTERVIEW_STATUS_HELP = (
     "A 4/5 or higher marks interview prep as ready."
 )
 
+UNSUPPORTED_CLAIMS_HEADER = "CLAIMS TO AVOID UNTIL YOU CAN PROVE THEM"
+
+REGENERATION_MODE_COPY = {
+    "Standard": "Balanced rewrite using supported resume evidence and job-post keywords.",
+    "Stricter evidence": "Most conservative mode. Only strong evidence enters the resume body.",
+    "More concise": "Shortens the draft and keeps the highest-signal supported bullets.",
+    "ATS-focused": "Moves supported keywords higher in the section order for scanner readability.",
+}
+
 
 st.set_page_config(
     page_title="CareerCompass",
@@ -665,6 +674,7 @@ def initialize_state() -> None:
         "safe_edits_only": False,
         "resume_regeneration_mode": "Standard",
         "resume_export_reviewed": False,
+        "resume_draft_saved_snapshot": "",
         "tailoring_error": "",
         "tailored_resume_history": [],
         "tailoring_summary": None,
@@ -712,6 +722,7 @@ def reset_demo_profile() -> None:
     st.session_state.safe_edits_only = False
     st.session_state.resume_regeneration_mode = "Standard"
     st.session_state.resume_export_reviewed = False
+    st.session_state.resume_draft_saved_snapshot = ""
     st.session_state.tailoring_error = ""
     st.session_state.tailored_resume_history = []
     st.session_state.tailoring_summary = None
@@ -730,6 +741,37 @@ def update_saved_resume_from_editor() -> None:
     st.session_state.resume_profile_source_snapshot = edited_resume.strip()
 
 
+def clear_profile_resume() -> None:
+    st.session_state.resume_text_area = ""
+    st.session_state.resume_profile_resume_editor = ""
+    st.session_state.resume_profile_source_snapshot = ""
+    st.session_state.resume_upload_metadata = None
+    st.session_state.resume_upload_notice = "Resume cleared from this session."
+    st.session_state.resume_draft = ""
+    st.session_state.resume_draft_saved_snapshot = ""
+    st.session_state.tailoring_summary = None
+    st.session_state.tailoring_change_rows = []
+
+
+def clear_profile_target_job() -> None:
+    st.session_state.target_job_company = ""
+    st.session_state.target_job_title = ""
+    st.session_state.target_job_url = ""
+    st.session_state.target_job_description = ""
+    st.session_state.resume_target_job_company = ""
+    st.session_state.resume_target_job_title = ""
+    st.session_state.resume_target_job_url = ""
+    st.session_state.resume_target_job_description = ""
+    st.session_state.generated_resume_target_job = {}
+    st.session_state.tailoring_summary = None
+    st.session_state.tailoring_change_rows = []
+
+
+def clear_profile_resume_and_job() -> None:
+    clear_profile_resume()
+    clear_profile_target_job()
+
+
 def clear_resume_job_post() -> None:
     st.session_state.resume_target_job_company = ""
     st.session_state.resume_target_job_title = ""
@@ -739,6 +781,10 @@ def clear_resume_job_post() -> None:
     st.session_state.tailoring_error = ""
     st.session_state.tailoring_summary = None
     st.session_state.tailoring_change_rows = []
+
+
+def mark_resume_draft_saved() -> None:
+    st.session_state.resume_draft_saved_snapshot = st.session_state.get("resume_draft", "")
 
 
 def upload_metadata(filename: str, text: str) -> dict:
@@ -832,6 +878,13 @@ def target_job_to_text(target_job: dict[str, str]) -> str:
         target_job.get("description", ""),
     ]
     return "\n".join(part for part in parts if part).strip()
+
+
+def current_coursework_from_session() -> list[str]:
+    return merge_coursework(
+        st.session_state.get("coursework_selection", []),
+        st.session_state.get("additional_coursework", ""),
+    )
 
 
 def sync_resume_target_job_from_profile() -> None:
@@ -992,6 +1045,15 @@ def render_inputs() -> dict:
             type=["txt", "md", "pdf", "docx"],
             help="TXT works immediately. PDF and DOCX extraction are supported when optional parser packages are installed.",
         )
+        st.caption(
+            "Privacy note: resume text stays in this Streamlit session unless you export it. "
+            "Use the clear controls below to remove resume or job-post text from the session."
+        )
+        clear_resume_col, clear_all_col = st.columns([1, 1])
+        with clear_resume_col:
+            st.button("Clear saved resume", on_click=clear_profile_resume)
+        with clear_all_col:
+            st.button("Clear resume and job post", on_click=clear_profile_resume_and_job)
         if uploaded_resume and uploaded_resume.name != st.session_state.last_resume_upload:
             extracted_text, notice = extract_uploaded_resume(uploaded_resume)
             st.session_state.last_resume_upload = uploaded_resume.name
@@ -1098,27 +1160,35 @@ def render_inputs() -> dict:
         )
         coursework = merge_coursework(coursework, additional_coursework)
 
-    st.subheader("Target Job Posting")
-    st.caption(
-        "Paste the job description you want to apply to. We'll compare it against your resume and show exactly what changed."
-    )
-    job_meta_col1, job_meta_col2 = st.columns([1, 1])
-    with job_meta_col1:
-        st.text_input("Company", key="target_job_company", placeholder="Example: Jamba Juice")
-        st.text_input("Job title", key="target_job_title", placeholder="Example: Product Marketing Associate")
-    with job_meta_col2:
-        st.text_input("Posting URL (optional)", key="target_job_url", placeholder="https://...")
-    st.text_area(
-        "Full job description",
-        key="target_job_description",
-        height=170,
-        placeholder="Paste responsibilities, qualifications, preferred skills, and company context here.",
-    )
+    with st.container(border=True):
+        st.subheader("Target Job Posting")
+        st.caption(
+            "Paste the job description you want to apply to. We'll compare it against your resume, "
+            "explain the resume match score, and reuse this job in the Resume Targeting Console."
+        )
+        st.button("Clear target job post", on_click=clear_profile_target_job)
+        job_meta_col1, job_meta_col2 = st.columns([1, 1])
+        with job_meta_col1:
+            st.text_input("Company", key="target_job_company", placeholder="Example: Jamba Juice")
+            st.text_input("Job title", key="target_job_title", placeholder="Example: Product Marketing Associate")
+        with job_meta_col2:
+            st.text_input("Posting URL (optional)", key="target_job_url", placeholder="https://...")
+        st.text_area(
+            "Full job description",
+            key="target_job_description",
+            height=190,
+            placeholder="Paste responsibilities, qualifications, preferred skills, and company context here.",
+        )
 
-    target_job = target_job_from_session("target_job")
-    if target_job["description"]:
-        word_count = len(re.findall(r"\b\w+\b", target_job["description"]))
-        st.caption(f"Target job saved for this session: {word_count} words from the pasted posting.")
+        target_job = target_job_from_session("target_job")
+        if target_job["description"]:
+            word_count = len(re.findall(r"\b\w+\b", target_job["description"]))
+            st.success(
+                f"Target job saved for this session: {word_count} words from the pasted posting. "
+                "CareerCompass will use it for the dashboard, resume targeting, interview prep, and final brief."
+            )
+        else:
+            st.info("Optional but recommended: add the actual job post now so the analysis can explain job-specific fit.")
 
     return {
         "resume_text": resume_text,
@@ -1191,6 +1261,92 @@ def resume_export_allowed(change_rows: list[dict], reviewed: bool) -> bool:
     return not any(row.get("Safe To Add") != "Yes" for row in change_rows) or reviewed
 
 
+def resume_match_breakdown(
+    analysis: dict,
+    resume_text: str,
+    coursework: list[str],
+    job_post: str = "",
+) -> dict[str, list[str]]:
+    rows = build_skill_evidence_map(
+        analysis=analysis,
+        resume_text=resume_text,
+        coursework=coursework,
+        job_post=job_post,
+    )
+    matched = [row["Skill"] for row in rows if row["Resume Evidence"] == "Strong evidence"]
+    weak = [row["Skill"] for row in rows if row["Resume Evidence"] == "Mentioned only"]
+    missing = [row["Skill"] for row in rows if row["Resume Evidence"] == "Needs proof"]
+    return {
+        "matched": matched,
+        "weak": weak,
+        "missing": missing,
+    }
+
+
+def summarize_signal_list(items: list[str], empty_label: str = "None yet") -> str:
+    if not items:
+        return empty_label
+    visible = items[:5]
+    suffix = f" and {len(items) - len(visible)} more" if len(items) > len(visible) else ""
+    return ", ".join(visible) + suffix
+
+
+def high_priority_gap_count(analysis: dict, breakdown: dict[str, list[str]]) -> int:
+    profile_high = int(analysis.get("gap_counts", {}).get("high", 0) or 0)
+    job_evidence_gaps = len(breakdown.get("missing", []))
+    return max(profile_high, job_evidence_gaps)
+
+
+def next_best_action(analysis: dict, breakdown: dict[str, list[str]], interview_stage: str) -> tuple[str, str]:
+    target_job = analysis.get("target_job", {}) or {}
+    if not target_job_to_text(target_job):
+        return (
+            "Add a target job posting",
+            "Paste the actual job description before tailoring so CareerCompass can compare requirements against your resume evidence.",
+        )
+    if breakdown.get("missing"):
+        return (
+            "Review evidence gaps before applying",
+            "Open Resume Targeting and convert unsupported job themes into safe rewrites or portfolio tasks.",
+        )
+    if breakdown.get("weak"):
+        return (
+            "Strengthen mentioned-only skills",
+            "Add one source bullet or project detail that proves the skills currently listed without context.",
+        )
+    if INTERVIEW_PROGRESS_ORDER.get(interview_stage, 0) < INTERVIEW_PROGRESS_ORDER["ready_to_apply"]:
+        return (
+            "Practice one interview answer",
+            "Complete one STAR answer and score 4/5 or higher before treating interview prep as ready.",
+        )
+    return (
+        "Export and track this application",
+        "Your resume evidence is aligned enough to export, then save the tailored version by company and role.",
+    )
+
+
+def render_resume_match_breakdown(analysis: dict) -> dict[str, list[str]]:
+    target_job = analysis.get("target_job", {}) or target_job_from_session("target_job")
+    job_post = target_job_to_text(target_job)
+    breakdown = resume_match_breakdown(
+        analysis=analysis,
+        resume_text=st.session_state.get("resume_text_area", ""),
+        coursework=current_coursework_from_session(),
+        job_post=job_post,
+    )
+    with st.container(border=True):
+        st.markdown("**Why this resume match score looks this way**")
+        st.caption("How much of this job post is supported by your current resume evidence.")
+        b1, b2, b3 = st.columns(3)
+        b1.markdown("**Matched evidence**")
+        b1.success(summarize_signal_list(breakdown["matched"], "No strong matches yet"))
+        b2.markdown("**Mentioned only**")
+        b2.warning(summarize_signal_list(breakdown["weak"], "No weak matches"))
+        b3.markdown("**Missing proof**")
+        b3.error(summarize_signal_list(breakdown["missing"], "No missing proof flagged"))
+    return breakdown
+
+
 def render_dashboard(analysis: dict) -> None:
     section_header(
         "Career Readiness Console",
@@ -1202,6 +1358,12 @@ def render_dashboard(analysis: dict) -> None:
         unsafe_allow_html=True,
     )
 
+    dashboard_breakdown = resume_match_breakdown(
+        analysis=analysis,
+        resume_text=st.session_state.get("resume_text_area", ""),
+        coursework=current_coursework_from_session(),
+        job_post=target_job_to_text(analysis.get("target_job", {}) or {}),
+    )
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(
         "Role fit",
@@ -1209,9 +1371,9 @@ def render_dashboard(analysis: dict) -> None:
         help="How closely your profile currently lines up with this target role and location.",
     )
     c2.metric(
-        "Top gaps",
-        analysis["gap_counts"]["high"],
-        help="High-priority gaps CareerCompass recommends addressing before applying.",
+        "High-priority gaps",
+        high_priority_gap_count(analysis, dashboard_breakdown),
+        help="High-severity profile gaps plus missing job-post evidence that should be reviewed before applying.",
     )
     c3.metric(
         "Resume match",
@@ -1223,6 +1385,15 @@ def render_dashboard(analysis: dict) -> None:
         interview_status_label(),
         help=INTERVIEW_STATUS_HELP,
     )
+    dashboard_breakdown = render_resume_match_breakdown(analysis)
+    action_title, action_body = next_best_action(
+        analysis,
+        dashboard_breakdown,
+        st.session_state.get("interview_progress_stage", "not_started"),
+    )
+    with st.container(border=True):
+        st.markdown(f"**Next best action: {action_title}**")
+        st.write(action_body)
 
     section_header(
         "Recommended Next Moves",
@@ -1445,17 +1616,18 @@ def render_resume(analysis: dict) -> None:
     st.header("Resume Targeting Console")
     st.caption("Reuse the saved profile resume, paste a job post, map skill signals, generate a targeted draft, then export.")
 
-    st.subheader("Resume Keyword Targets")
-    st.write(
-        "These are the words and phrases CareerCompass thinks should be represented somewhere in the resume."
-    )
-    keyword_df = pd.DataFrame(analysis["keyword_targets"])
-    st.dataframe(keyword_df, use_container_width=True, hide_index=True)
+    with st.expander("Advanced: keyword targets and resume evidence reminders", expanded=False):
+        st.subheader("Resume Keyword Targets")
+        st.write(
+            "These are the words and phrases CareerCompass thinks should be represented somewhere in the resume."
+        )
+        keyword_df = pd.DataFrame(analysis["keyword_targets"])
+        st.dataframe(keyword_df, use_container_width=True, hide_index=True)
 
-    st.subheader("Resume Evidence Reminders")
-    st.caption("Use these while reviewing the tailored draft for this job post.")
-    for item in analysis["resume_checklist"]:
-        st.checkbox(item, value=False, key=f"resume-check-{item}")
+        st.subheader("Resume Evidence Reminders")
+        st.caption("Use these while reviewing the tailored draft for this job post.")
+        for item in analysis["resume_checklist"]:
+            st.checkbox(item, value=False, key=f"resume-check-{item}")
 
     saved_resume = st.session_state.resume_text_area.strip()
     if st.session_state.resume_profile_source_snapshot != saved_resume:
@@ -1504,21 +1676,19 @@ def render_resume(analysis: dict) -> None:
     else:
         st.info("Paste a job post to add job-specific keywords to the existing CareerCompass resume targets.")
 
-    st.subheader("Signal Map")
-    st.caption("Use this to see what CareerCompass found before generating the tailored resume.")
-    if job_post:
-        evidence_map = build_skill_evidence_map(
-            analysis=analysis,
-            resume_text=st.session_state.resume_text_area,
-            coursework=merge_coursework(
-                st.session_state.coursework_selection,
-                st.session_state.additional_coursework,
-            ),
-            job_post=job_post,
-        )
-        st.dataframe(pd.DataFrame(evidence_map), use_container_width=True, hide_index=True)
-    else:
-        st.info("Paste the full posting, not just the title, so we can compare responsibilities, qualifications, and keywords.")
+    with st.expander("Advanced: Signal Map", expanded=False):
+        st.subheader("Signal Map")
+        st.caption("Use this to see what CareerCompass found before generating the tailored resume.")
+        if job_post:
+            evidence_map = build_skill_evidence_map(
+                analysis=analysis,
+                resume_text=st.session_state.resume_text_area,
+                coursework=current_coursework_from_session(),
+                job_post=job_post,
+            )
+            st.dataframe(pd.DataFrame(evidence_map), use_container_width=True, hide_index=True)
+        else:
+            st.info("Paste the full posting, not just the title, so we can compare responsibilities, qualifications, and keywords.")
 
     st.subheader("Choose a Resume Format")
     st.write("The selected format will restructure your saved resume for the pasted job post, not just apply a generic template.")
@@ -1638,6 +1808,7 @@ def render_resume(analysis: dict) -> None:
             key="resume_regeneration_mode",
             help="Use stricter evidence for conservative drafts, concise for shorter language, or ATS-focused for keyword-forward structure.",
         )
+        st.caption(REGENERATION_MODE_COPY[regeneration_mode])
     with safety_col:
         safe_edits_only = st.toggle(
             "Safe edits only",
@@ -1660,10 +1831,7 @@ def render_resume(analysis: dict) -> None:
                     st.session_state.resume_export_reviewed = False
                     st.session_state.tailoring_error = ""
                     render_tailoring_progress()
-                    coursework = merge_coursework(
-                        st.session_state.coursework_selection,
-                        st.session_state.additional_coursework,
-                    )
+                    coursework = current_coursework_from_session()
                     change_rows = build_tailoring_change_summary(
                         saved_resume=st.session_state.resume_text_area,
                         analysis=analysis,
@@ -1686,6 +1854,7 @@ def render_resume(analysis: dict) -> None:
                     )
                     job_keywords = derive_job_post_keywords(job_post, analysis)
                     st.session_state.resume_draft = tailored
+                    st.session_state.resume_draft_saved_snapshot = tailored
                     st.session_state.tailoring_change_rows = change_rows
                     st.session_state.tailoring_summary = summarize_tailoring_result(
                         change_rows,
@@ -1733,11 +1902,29 @@ def render_resume(analysis: dict) -> None:
         )
         if st.button("Reload selected draft"):
             st.session_state.resume_draft = st.session_state.tailored_resume_history[selected_history]["Draft"]
+            st.session_state.resume_draft_saved_snapshot = st.session_state.resume_draft
             st.success("Selected tailored draft loaded into the editor.")
 
     if st.session_state.tailoring_change_rows:
         st.subheader("Review Changes Before Applying")
         st.dataframe(pd.DataFrame(st.session_state.tailoring_change_rows), use_container_width=True, hide_index=True)
+        safe_rewrites = build_safe_rewrite_suggestions(
+            saved_resume=st.session_state.resume_text_area,
+            analysis=analysis,
+            job_post=job_post,
+            coursework=current_coursework_from_session(),
+        )
+        st.subheader("Safe Rewrite Suggestions")
+        st.caption("These alternatives stay grounded in the supplied resume instead of adding unsupported job-post claims.")
+        st.dataframe(pd.DataFrame(safe_rewrites), use_container_width=True, hide_index=True)
+
+        unsupported_actions = build_unsupported_claim_actions(st.session_state.tailoring_change_rows)
+        if unsupported_actions:
+            st.subheader(UNSUPPORTED_CLAIMS_HEADER.title())
+            st.caption(
+                "These are useful job-post themes, but CareerCompass did not find enough evidence in your resume to safely add them."
+            )
+            st.dataframe(pd.DataFrame(unsupported_actions), use_container_width=True, hide_index=True)
 
     if not st.session_state.resume_draft:
         st.session_state.resume_draft = st.session_state.resume_text_area.strip() or build_resume_draft(analysis, template_name, custom_template)
@@ -1749,13 +1936,18 @@ def render_resume(analysis: dict) -> None:
         height=520,
         help="Review every suggested edit before submitting. Unsupported claims stay in their own section.",
     )
+    if st.session_state.resume_draft == st.session_state.get("resume_draft_saved_snapshot", ""):
+        st.success("Draft saved in this session.")
+    else:
+        st.warning("Unsaved edits in this session. Mark this draft saved before exporting or reloading another version.")
+        st.button("Mark draft saved in this session", on_click=mark_resume_draft_saved)
 
     if st.session_state.tailoring_summary:
         unsupported_count = st.session_state.tailoring_summary.get("missing_skills", 0)
         if unsupported_count:
             st.warning(
-                f"{unsupported_count} claims are flagged under DO NOT ADD UNTIL YOU HAVE EVIDENCE. "
-                "Review them before exporting."
+                f"{unsupported_count} claims are flagged under {UNSUPPORTED_CLAIMS_HEADER}. "
+                "Before exporting, review claims marked as unsupported. Do not submit bullets you cannot defend in an interview."
             )
             st.checkbox(
                 "I reviewed the unsupported claims and understand they should not be added without evidence.",
@@ -1765,6 +1957,8 @@ def render_resume(analysis: dict) -> None:
             st.session_state.tailoring_change_rows,
             st.session_state.get("resume_export_reviewed", False),
         )
+        if not export_allowed:
+            st.error("Export locked until you confirm the unsupported-claim review.")
         download_col1, download_col2 = st.columns([1, 1])
         with download_col1:
             st.download_button(
@@ -1835,6 +2029,11 @@ def render_interview(analysis: dict) -> None:
     st.markdown("**Practice question**")
     st.write(selected_question)
     st.caption(f"Rubric focus: {selected_detail['rubric_focus']}")
+    cues = build_interview_evidence_cues(analysis, selected_question)
+    if cues:
+        with st.expander("Resume evidence to pull into this answer", expanded=False):
+            for cue in cues:
+                st.write(f"- {cue}")
 
     answer = st.text_area(
         "Your answer",
@@ -1867,6 +2066,7 @@ def render_interview(analysis: dict) -> None:
         st.metric("Practice score", f"{result['score']}/5")
         st.write(result["feedback"])
         with st.expander("Show a strong sample answer"):
+            st.caption("Adapt the sample to your actual resume evidence and the pasted target job. Do not claim work you cannot defend.")
             st.write(result["sample_answer"])
 
 
@@ -1875,6 +2075,20 @@ def _question_picker_label(question: dict) -> str:
     if len(text) > 92:
         text = text[:89].rsplit(" ", 1)[0].rstrip(",.;:") + "..."
     return f"{question.get('type', 'Question')}: {text}"
+
+
+def build_interview_evidence_cues(analysis: dict, question: str, limit: int = 3) -> list[str]:
+    resume_text = st.session_state.get("resume_text_area", "")
+    source_bullets = extract_resume_bullets(resume_text, limit=limit)
+    target_job = analysis.get("target_job", {}) or {}
+    job_title = target_job.get("title") or analysis.get("target_role", "target role")
+    job_keywords = [item["Keyword"] for item in derive_job_post_keywords(target_job_to_text(target_job), analysis)]
+    cues = []
+    for bullet in source_bullets:
+        cues.append(f"Use this real resume evidence for {job_title}: {bullet}")
+    if job_keywords:
+        cues.append("Tie the answer back to supported job themes only: " + ", ".join(job_keywords[:4]))
+    return cues[:limit]
 
 
 def render_report(analysis: dict) -> None:
@@ -1917,14 +2131,14 @@ def render_console_hero() -> None:
     if analysis:
         metric_cards = [
             ("Target Role Fit", f"{analysis.get('match_percentage', '--')}%", analysis.get("role_label", "Role fit mapped"), ""),
-            ("Skill Coverage", f"{analysis.get('keyword_coverage', '--')}%", "Resume evidence scan", ""),
+            ("Resume Match", f"{analysis.get('keyword_coverage', '--')}%", "Resume evidence scan", ""),
             ("Market Demand", market_demand, top_market_skill, ""),
-            ("Action Items", str(next_action_count), f"{gap_count} priority alerts", " is-alert"),
+            ("Action Items", str(next_action_count), f"{gap_count} high-priority gaps", " is-alert"),
         ]
     else:
         metric_cards = [
             ("Target Role Fit", "Ready", "Load a profile", ""),
-            ("Skill Coverage", "Scan", "Resume evidence", ""),
+            ("Resume Match", "Scan", "Resume evidence", ""),
             ("Market Demand", "Pending", "Role signal", ""),
             ("Action Items", "0", "Generated after scan", " is-alert"),
         ]
@@ -2245,6 +2459,12 @@ def job_keyword_usage(keyword: str) -> str:
     return "Place it in the summary, skills, or a bullet only when supported by your resume evidence."
 
 
+def keyword_or_alias_in_text(keyword: str, text: str) -> bool:
+    normalized = normalize_text(text)
+    aliases = JOB_KEYWORD_ALIASES.get(keyword, [keyword])
+    return any(alias.lower() in normalized for alias in aliases)
+
+
 def extract_repeated_job_phrases(job_post: str) -> list[str]:
     normalized = normalize_text(job_post)
     words = re.findall(r"[A-Za-z][A-Za-z+#/.-]{2,}", normalized)
@@ -2550,6 +2770,104 @@ def build_tailoring_change_summary(
     return rows[:12]
 
 
+def build_safe_rewrite_suggestions(
+    saved_resume: str,
+    analysis: dict,
+    job_post: str,
+    coursework: list[str] | None = None,
+    limit: int = 5,
+) -> list[dict]:
+    coursework = coursework or []
+    source_bullets = extract_resume_bullets(saved_resume, limit=limit)
+    keywords = keyword_names(analysis, job_post)
+    supported_keywords = [
+        keyword
+        for keyword in keywords
+        if evidence_status_allows_body(
+            assess_skill_evidence(keyword, saved_resume, coursework)["status"],
+            safe_edits_only=True,
+        )
+    ]
+    rows = []
+    for bullet in source_bullets:
+        matched_keywords = [
+            keyword
+            for keyword in supported_keywords
+            if keyword_or_alias_in_text(keyword, bullet)
+        ]
+        if not matched_keywords and supported_keywords:
+            matched_keywords = supported_keywords[:2]
+        rows.append(
+            {
+                "Source resume evidence": bullet,
+                "Safe rewrite suggestion": safe_rewrite_from_source_bullet(bullet, matched_keywords),
+                "Why this is safe": (
+                    "Uses only wording already present in the supplied resume"
+                    if not matched_keywords
+                    else "Uses supplied resume evidence and supported keywords: " + ", ".join(matched_keywords[:3])
+                ),
+            }
+        )
+    if not rows:
+        rows.append(
+            {
+                "Source resume evidence": "No work, project, or summary bullets detected yet.",
+                "Safe rewrite suggestion": "Add a truthful source bullet from your resume before generating a job-specific rewrite.",
+                "Why this is safe": "CareerCompass will not invent experience when no source evidence is present.",
+            }
+        )
+    return rows[:limit]
+
+
+def safe_rewrite_from_source_bullet(bullet: str, matched_keywords: list[str]) -> str:
+    cleaned = bullet.strip().rstrip(".")
+    if matched_keywords:
+        keyword_text = ", ".join(matched_keywords[:3])
+        return f"{cleaned}. Keep this as evidence for {keyword_text}; add a metric only if you can verify it."
+    return f"{cleaned}. Keep this wording unless you can truthfully add a measurable result."
+
+
+def build_unsupported_claim_actions(change_rows: list[dict]) -> list[dict]:
+    rows = []
+    for row in change_rows:
+        if row.get("Safe To Add") == "Yes":
+            continue
+        claim = extract_claim_label(row.get("Suggested", ""))
+        rows.append(
+            {
+                "Claim to avoid": claim,
+                "Why it is blocked": row.get("Reason", "CareerCompass did not find enough resume evidence."),
+                "How to earn the evidence": portfolio_task_for_keyword(claim),
+            }
+        )
+    return rows
+
+
+def extract_claim_label(text: str) -> str:
+    claim_match = re.search(r"Do not claim (.+?) yet", text, flags=re.IGNORECASE)
+    if claim_match:
+        return clean_skill_label(claim_match.group(1))
+    needs_match = re.search(r"before adding:\s*(.+)", text, flags=re.IGNORECASE)
+    if needs_match:
+        return clean_skill_label(needs_match.group(1)[:88])
+    return clean_skill_label(text[:88]) or "Unsupported claim"
+
+
+def portfolio_task_for_keyword(keyword: str) -> str:
+    lower_keyword = keyword.lower()
+    if any(term in lower_keyword for term in ["a/b", "experiment", "conversion"]):
+        return "Run or document a small experiment with hypothesis, audience, metric, result, and what changed."
+    if any(term in lower_keyword for term in ["go-to-market", "launch", "positioning", "campaign"]):
+        return "Create a launch brief or campaign plan with audience, message, channel, timeline, and success metric."
+    if any(term in lower_keyword for term in ["customer", "research", "insight", "persona"]):
+        return "Add a customer research note, survey summary, interview synthesis, or persona artifact you actually created."
+    if any(term in lower_keyword for term in ["figma", "wireframe", "design"]):
+        return "Link a Figma artifact or describe the design problem, user need, and iteration you completed."
+    if any(term in lower_keyword for term in ["sql", "python", "dashboard", "tableau", "power bi"]):
+        return "Build a small analysis artifact and record the dataset, tool, question, output, and decision supported."
+    return "Create a small portfolio artifact or coursework example that proves this claim before adding it to the resume."
+
+
 def summarize_tailoring_result(change_rows: list[dict], job_keywords: list[dict]) -> dict[str, int]:
     return {
         "keywords": len(job_keywords),
@@ -2664,7 +2982,7 @@ def build_tailored_resume_draft(
         "EDUCATION": f"EDUCATION\n{education}",
         "SOURCE RESUME EVIDENCE": "SOURCE RESUME EVIDENCE\n" + "\n".join(f"- {bullet}" for bullet in source_bullets[:source_evidence_limit]),
         "CAREERCOMPASS IMPROVEMENTS": f"CAREERCOMPASS IMPROVEMENTS\n{improvements}",
-        "DO NOT ADD UNTIL YOU HAVE EVIDENCE": f"DO NOT ADD UNTIL YOU HAVE EVIDENCE\n{needs_evidence}",
+        UNSUPPORTED_CLAIMS_HEADER: f"{UNSUPPORTED_CLAIMS_HEADER}\n{needs_evidence}",
         "JOB POST TARGETS": "JOB POST TARGETS\n" + "\n".join(f"- {keyword}" for keyword in keywords[:8]),
     }
 
@@ -2674,20 +2992,20 @@ def build_tailored_resume_draft(
         for section in custom_sections:
             rendered.append(section_map.get(section, f"{section}\nAdd content here using saved resume evidence and job-post keywords."))
         rendered.append(section_map["CAREERCOMPASS IMPROVEMENTS"])
-        rendered.append(section_map["DO NOT ADD UNTIL YOU HAVE EVIDENCE"])
+        rendered.append(section_map[UNSUPPORTED_CLAIMS_HEADER])
         rendered.append(section_map["JOB POST TARGETS"])
         return "\n\n".join(rendered).strip() + "\n"
 
     if regeneration_mode == "ATS-focused":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE", "JOB POST TARGETS"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", UNSUPPORTED_CLAIMS_HEADER, "JOB POST TARGETS"]
     elif format_name == "Project-forward resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE", "JOB POST TARGETS"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", UNSUPPORTED_CLAIMS_HEADER, "JOB POST TARGETS"]
     elif format_name == "Experience-forward resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", UNSUPPORTED_CLAIMS_HEADER]
     elif format_name == "Skills matrix resume":
-        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE"]
+        order = ["HEADER", "SUMMARY", "TARGETED SKILLS", "SOURCE RESUME EVIDENCE", "PROJECT EXPERIENCE", "EDUCATION", "CAREERCOMPASS IMPROVEMENTS", UNSUPPORTED_CLAIMS_HEADER]
     else:
-        order = ["HEADER", "SUMMARY", "EXPERIENCE", "EDUCATION", "TARGETED SKILLS", "CAREERCOMPASS IMPROVEMENTS", "DO NOT ADD UNTIL YOU HAVE EVIDENCE", "JOB POST TARGETS"]
+        order = ["HEADER", "SUMMARY", "EXPERIENCE", "EDUCATION", "TARGETED SKILLS", "CAREERCOMPASS IMPROVEMENTS", UNSUPPORTED_CLAIMS_HEADER, "JOB POST TARGETS"]
 
     return "\n\n".join(section_map[section] for section in order).strip() + "\n"
 

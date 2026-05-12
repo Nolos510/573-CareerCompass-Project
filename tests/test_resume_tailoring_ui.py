@@ -1,14 +1,18 @@
 import unittest
 
 from app import (
+    UNSUPPORTED_CLAIMS_HEADER,
+    build_safe_rewrite_suggestions,
     build_tailoring_change_summary,
     build_skill_evidence_map,
     build_tailored_resume_draft,
+    build_unsupported_claim_actions,
     derive_job_post_keywords,
     extract_resume_education,
     extract_resume_identity,
     friendly_tailoring_error,
     resume_export_allowed,
+    resume_match_breakdown,
     resume_format_template_key,
     resume_format_metadata,
     validate_interview_answer,
@@ -167,7 +171,7 @@ class ResumeTailoringUiTest(unittest.TestCase):
         self.assertIn("Maya Rivera", tailored)
         self.assertIn("maya@example.com", tailored)
         self.assertIn("State University - B.A. Communications", tailored)
-        self.assertIn("DO NOT ADD UNTIL YOU HAVE EVIDENCE", tailored)
+        self.assertIn(UNSUPPORTED_CLAIMS_HEADER, tailored)
         self.assertIn("A/B testing", tailored)
         self.assertNotIn("Emphasized A/B testing", tailored)
         self.assertTrue(any(row["Safe To Add"] == "Needs evidence" for row in changes))
@@ -197,10 +201,10 @@ class ResumeTailoringUiTest(unittest.TestCase):
             format_name="Experience-forward resume",
             selected_suggestions=selected,
         )
-        resume_body = tailored.split("DO NOT ADD UNTIL YOU HAVE EVIDENCE")[0]
+        resume_body = tailored.split(UNSUPPORTED_CLAIMS_HEADER)[0]
 
         self.assertNotIn("Built a campaign performance dashboard", resume_body)
-        self.assertIn("DO NOT ADD UNTIL YOU HAVE EVIDENCE", tailored)
+        self.assertIn(UNSUPPORTED_CLAIMS_HEADER, tailored)
 
     def test_safe_edits_only_excludes_mentioned_suggestions_from_body(self):
         saved_resume = """
@@ -237,8 +241,55 @@ class ResumeTailoringUiTest(unittest.TestCase):
             safe_edits_only=True,
         )
 
-        self.assertIn("Developed a product marketing brief", relaxed.split("DO NOT ADD UNTIL YOU HAVE EVIDENCE")[0])
-        self.assertNotIn("Developed a product marketing brief", strict.split("DO NOT ADD UNTIL YOU HAVE EVIDENCE")[0])
+        self.assertIn("Developed a product marketing brief", relaxed.split(UNSUPPORTED_CLAIMS_HEADER)[0])
+        self.assertNotIn("Developed a product marketing brief", strict.split(UNSUPPORTED_CLAIMS_HEADER)[0])
+
+    def test_resume_match_breakdown_separates_matched_weak_and_missing(self):
+        breakdown = resume_match_breakdown(
+            analysis=self.analysis,
+            resume_text="Skills: SQL\nBuilt a Tableau dashboard for weekly KPI reporting.",
+            coursework=["Python Programming"],
+            job_post=self.job_post + "\nPython and launch copy required.",
+        )
+
+        self.assertIn("Tableau", breakdown["matched"])
+        self.assertIn("SQL", breakdown["weak"])
+        self.assertIn("Launch copy", breakdown["missing"])
+
+    def test_safe_rewrites_use_source_resume_evidence(self):
+        saved_resume = """
+        Maya Rivera
+        maya@example.com
+
+        EXPERIENCE
+        - Coordinated student club events and wrote weekly member updates.
+        - Built Figma wireframes for a class project.
+        """
+        rows = build_safe_rewrite_suggestions(
+            saved_resume=saved_resume,
+            analysis=self.analysis,
+            job_post="Product Marketing Associate\nNeeds Figma, launch copy, and campaign performance.",
+            coursework=[],
+        )
+
+        combined = " ".join(row["Safe rewrite suggestion"] for row in rows)
+        self.assertIn("Coordinated student club events", combined)
+        self.assertIn("Built Figma wireframes", combined)
+        self.assertNotIn("campaign performance dashboard", combined.lower())
+
+    def test_unsupported_claim_actions_explain_how_to_earn_evidence(self):
+        rows = build_unsupported_claim_actions(
+            [
+                {
+                    "Suggested": "Do not claim Launch copy yet; add a project, coursework, or work example first.",
+                    "Reason": "Keyword appears in the target job but is not supported by current resume evidence.",
+                    "Safe To Add": "Needs evidence",
+                }
+            ]
+        )
+
+        self.assertEqual(rows[0]["Claim to avoid"], "Launch copy")
+        self.assertIn("launch brief", rows[0]["How to earn the evidence"].lower())
 
     def test_keyword_extraction_filters_generic_noise(self):
         job_post = """
