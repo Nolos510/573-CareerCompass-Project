@@ -4,5 +4,9 @@
 __pycache__/
 *.pyc
 streamlit*.log
+*streamlit*.log
 DATA/
+careercompass-dynamic-ui-worktree/
+careercompass-latest-main-view/
+tm4-frontend-demo-polish-worktree/
 
