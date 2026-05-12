@@ -531,3 +531,28 @@ Skipped verification:
 Notes:
 
 - No pull, fetch, rebase, merge, commit, reset, checkout, or push was performed.
+
+### 2026-05-12 - Codex - Protected final submission cleanup branch
+
+Changed files:
+
+- Created safety branch `codex/final-submission-cleanup` before syncing with remote main.
+- Preserved the main cleanup work in commit `68cc134` (`Finalize submission evidence and demo polish`).
+- Added final submission evidence/docs, rubric evidence docs, screenshots, test collection config, Streamlit launch helpers, Docker ignore/git ignore cleanup, and the Word report artifact already described in the previous handoff.
+- Kept `.tmp/` helper scripts and runtime/cache noise out of staging.
+
+Verification:
+
+- Read `agents.md` before git operations and followed the non-destructive first-gate checks.
+- Checked live remote `main` before preservation: `e7ef80a87b7daada39f2981dc6beb265ab054c46`.
+- `C:\Users\knolo\anaconda3\python.exe -m pytest -q` -> 34 passed, 1 LangGraph deprecation warning.
+- `C:\Users\knolo\anaconda3\python.exe -m compileall app.py careercompass tests` -> passed.
+- Existing local Streamlit server on `http://localhost:8503/` -> `200 OK`.
+- Docker Desktop CLI was available at `C:\Users\knolo\AppData\Local\Programs\DockerDesktop\resources\bin`; `docker build -t careercompass .` passed after adding that directory to PATH for the shell.
+- Temporary Docker container `careercompass-cleanup-verify` served `http://localhost:8501/` with `200 OK` and was stopped after verification.
+
+Notes:
+
+- No pull, rebase, merge, reset, or force-push was performed before protecting local work.
+- Local branch started from `f94ede8` and was behind live remote `main` by 12 commits, so this branch should be reviewed through a PR into `main`.
+- The first cleanup commit was made with author `Nolos510 <knolos510@gmail.com>`.
