@@ -35,6 +35,7 @@ class AgentState(TypedDict):
     user_profile: dict[str, Any]
     target_role: str
     target_location: str
+    target_job: dict[str, str]
     timeline_days: int
     resume_text: str
     coursework: list[str]
@@ -64,6 +65,7 @@ class CareerStrategyOutput(TypedDict):
     route_plan: list[AgentName]
     target_role: str
     target_location: str
+    target_job: NotRequired[dict[str, str]]
     role_label: str
     match_percentage: int
     gap_counts: dict[str, int]

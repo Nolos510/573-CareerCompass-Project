@@ -28,6 +28,7 @@ class CareerCompassWorkflowTest(unittest.TestCase):
 
         self.assertIsInstance(state, dict)
         self.assertEqual(state["target_role"], self.inputs["target_role"])
+        self.assertEqual(state["target_job"], {"company": "", "title": "", "url": "", "description": ""})
         self.assertEqual(state["retrieved_job_postings"], [])
         self.assertEqual(state["market_skills"], [])
         self.assertEqual(state["gap_report"], [])
@@ -159,6 +160,45 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         self.assertIn("Python", skill_names)
         self.assertIn("experimentation", skill_names)
 
+    def test_strong_skill_evidence_improves_keyword_coverage(self):
+        mentioned_result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": "Skills: SQL, Python, Tableau.",
+                "coursework": [],
+            }
+        )
+        strong_result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": (
+                    "Built SQL reports with joins and CTEs for weekly operations. "
+                    "Automated reporting with a Python script and presented Tableau dashboards to stakeholders."
+                ),
+                "coursework": [],
+            }
+        )
+
+        self.assertGreater(
+            strong_result["keyword_coverage"],
+            mentioned_result["keyword_coverage"],
+        )
+
+    def test_missing_high_demand_skills_remain_priority_gaps(self):
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Data Analyst",
+                "resume_text": "Customer service and team leadership experience.",
+                "coursework": [],
+            }
+        )
+
+        self.assertIn(result["gap_report"][0]["Severity"], {"High", "Medium"})
+        self.assertNotEqual(result["gap_report"][0]["Current Evidence"].split(":", 1)[0], "Strong evidence found")
+
     def test_unknown_custom_role_still_returns_complete_output(self):
         result = run_career_analysis(
             {
@@ -173,6 +213,57 @@ class CareerCompassWorkflowTest(unittest.TestCase):
         self.assertTrue(result["market_skills"])
         self.assertTrue(result["gap_report"])
         validate_final_output(result)
+
+    def test_target_job_fields_are_preserved_in_state_and_output(self):
+        target_job = {
+            "company": "Jamba Juice",
+            "title": "Product Marketing Associate",
+            "url": "https://example.com/jobs/pmm",
+            "description": (
+                "Own launch planning, campaign strategy, positioning, customer insight, "
+                "conversion optimization, and A/B testing for store and loyalty experiences."
+            ),
+        }
+        state = create_initial_state({**self.inputs, "target_job": target_job})
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Product Marketing Associate",
+                "target_job": target_job,
+                "coursework": ["Marketing Strategy", "Consumer Behavior"],
+            }
+        )
+
+        self.assertEqual(state["target_job"], target_job)
+        self.assertEqual(result["target_job"], target_job)
+        self.assertEqual(result["retrieved_job_postings"][0]["id"], "target-job-posting")
+        self.assertIn("Product Marketing Associate", result["final_strategy_report"])
+
+    def test_product_marketing_target_uses_marketing_signals_not_default_mis(self):
+        result = run_career_analysis(
+            {
+                **self.inputs,
+                "target_role": "Product Marketing Associate",
+                "resume_text": "Created campaign briefs, presented customer research, and supported product launch planning.",
+                "coursework": ["Marketing Strategy", "Consumer Behavior"],
+                "target_job": {
+                    "company": "Jamba Juice",
+                    "title": "Product Marketing Associate",
+                    "url": "",
+                    "description": (
+                        "Product marketing associate role focused on launch planning, positioning, campaign strategy, "
+                        "customer insight, conversion optimization, and A/B testing."
+                    ),
+                },
+            }
+        )
+
+        skill_names = {skill["Skill"] for skill in result["market_skills"]}
+        self.assertIn("Product marketing", skill_names)
+        self.assertIn("customer insight", skill_names)
+        self.assertIn("campaign strategy", skill_names)
+        self.assertNotIn("Tableau", list(skill_names)[:3])
+        self.assertTrue(any("launch" in phase["goal"].lower() or "product" in phase["goal"].lower() for phase in result["learning_roadmap"]))
 
 
 if __name__ == "__main__":

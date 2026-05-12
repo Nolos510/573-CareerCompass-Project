@@ -556,3 +556,20 @@ Notes:
 - No pull, rebase, merge, reset, or force-push was performed before protecting local work.
 - Local branch started from `f94ede8` and was behind live remote `main` by 12 commits, so this branch should be reviewed through a PR into `main`.
 - The first cleanup commit was made with author `Nolos510 <knolos510@gmail.com>`.
+
+### 2026-05-12 - Codex - Re-ran Docker build/run verification
+
+Changed files:
+
+- Updated `agents.md` with this fresh Docker verification handoff.
+
+Verification:
+
+- Read `agents.md` tail and checked `git status --short --branch`; working branch is `codex/final-submission-cleanup...origin/codex/final-submission-cleanup`.
+- `docker info --format '{{.ServerVersion}} {{.OperatingSystem}}'` -> `29.4.3 Docker Desktop`.
+- `docker build -t careercompass .` -> passed.
+- Verified port `8501` was clear, then ran `docker run --rm -d -p 8501:8501 --name careercompass-verify careercompass`.
+- Container `236a1244afba474f23499901446b1d732b8cb2345ee0f28fbd92534f9f2e6e05` started successfully.
+- Container logs showed Streamlit serving on `http://localhost:8501`.
+- `Invoke-WebRequest http://localhost:8501` -> `HTTP 200 OK`.
+- Stopped the temporary `careercompass-verify` container after verification.

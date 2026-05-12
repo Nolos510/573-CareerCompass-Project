@@ -5,31 +5,92 @@ from typing import Any
 
 
 SKILL_ALIASES = {
-    "Agile": ["agile", "scrum", "sprint"],
-    "Excel": ["excel", "spreadsheet", "spreadsheets"],
-    "Jira": ["jira", "atlassian"],
+    "Agile": ["agile", "scrum", "sprint", "backlog", "standup", "retrospective"],
+    "Excel": ["excel", "spreadsheet", "spreadsheets", "pivot table", "vlookup", "power query"],
+    "Jira": ["jira", "atlassian", "asana", "trello", "project board"],
     "KPIs": ["kpi", "kpis", "metric", "metrics"],
-    "Power BI": ["power bi", "powerbi"],
-    "Python": ["python"],
-    "SQL": ["sql", "database", "queries", "query"],
-    "Tableau": ["tableau"],
-    "stakeholder communication": ["stakeholder", "stakeholders", "presentation", "communication"],
-    "requirements gathering": ["requirements", "business requirements", "user stories"],
-    "risk management": ["risk", "risks", "mitigation"],
+    "Power BI": ["power bi", "powerbi", "bi dashboard", "business intelligence"],
+    "Python": ["python", "pandas", "numpy", "jupyter", "script", "automation"],
+    "SQL": ["sql", "database", "queries", "query", "joins", "join", "cte", "ctes", "window functions"],
+    "Tableau": ["tableau", "dashboard", "visualization", "reporting"],
+    "stakeholder communication": ["stakeholder", "stakeholders", "presentation", "communication", "cross-functional"],
+    "requirements gathering": ["requirements", "business requirements", "user stories", "acceptance criteria"],
+    "risk management": ["risk", "risks", "mitigation", "risk register", "blocker", "dependency"],
     "project coordination": ["project coordination", "coordinated", "led a team", "team project"],
     "milestones": ["milestone", "milestones", "timeline", "schedule"],
     "documentation": ["documentation", "documenting", "documented"],
-    "data analysis": ["data analysis", "analytics", "analysis"],
+    "data analysis": ["data analysis", "analytics", "insights"],
     "data storytelling": ["storytelling", "presenting findings", "recommendations"],
     "process improvement": ["process improvement", "improvement"],
     "process mapping": ["process mapping", "process map"],
-    "user acceptance testing": ["uat", "user acceptance", "testing"],
+    "user acceptance testing": ["uat", "user acceptance", "testing", "acceptance testing"],
     "business process": ["business process", "process"],
-    "experimentation": ["experimentation", "experiment", "a/b"],
+    "experimentation": ["experimentation", "experiment", "a/b test", "a/b testing", "split test"],
+    "A/B testing": ["a/b test", "a/b testing", "ab test", "ab testing", "split test", "experiment", "experimentation"],
+    "campaign strategy": ["campaign strategy", "campaign plan", "channel strategy", "marketing channels"],
+    "conversion optimization": ["conversion optimization", "conversion funnel", "funnel optimization", "activation", "retention"],
+    "customer insight": ["customer insight", "customer research", "persona", "user research", "voice of customer"],
+    "Figma": ["figma"],
+    "launch planning": ["launch", "go-to-market", "gtm", "release planning"],
+    "positioning": ["positioning", "messaging", "value proposition"],
+    "product design": ["product design", "interaction design", "visual design"],
+    "Product marketing": ["product marketing", "go-to-market", "launch", "positioning"],
+    "prototyping": ["prototype", "prototyping", "mockup", "wireframe"],
+    "usability testing": ["usability", "user testing", "usability test"],
+    "user research": ["user research", "ux research", "interviews", "survey", "journey map"],
     "scope": ["scope", "scoping"],
-    "Scrum": ["scrum", "sprint"],
+    "Scrum": ["scrum", "sprint", "backlog", "standup"],
     "timeline management": ["timeline", "schedule"],
     "presentation": ["presentation", "presented", "presenting"],
+}
+
+STRONG_EVIDENCE_TERMS = [
+    "achieved",
+    "analyzed",
+    "automated",
+    "built",
+    "created",
+    "delivered",
+    "designed",
+    "developed",
+    "documented",
+    "improved",
+    "increased",
+    "led",
+    "managed",
+    "measured",
+    "launched",
+    "presented",
+    "prioritized",
+    "prototyped",
+    "queried",
+    "researched",
+    "reduced",
+    "reported",
+    "resolved",
+    "supported",
+    "tracked",
+    "validated",
+]
+
+BROAD_ALIAS_TERMS = {
+    "analysis",
+    "audience",
+    "campaign",
+    "conversion",
+    "customer",
+    "dashboard",
+    "funnel",
+    "launch",
+    "marketing",
+    "presentation",
+    "process",
+    "product",
+    "prototype",
+    "reporting",
+    "testing",
+    "wireframe",
+    "wireframes",
 }
 
 
@@ -63,25 +124,42 @@ def gap_report_fallback(
 
 
 def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[dict[str, Any]]:
-    evidence_text = _student_evidence_text(state)
     missing_rows = []
+    mentioned_rows = []
     covered_rows = []
 
     for market_skill in state.get("market_skills", [])[:8]:
         skill = market_skill["Skill"]
-        evidenced = _skill_is_evidenced(skill, evidence_text)
+        evidence = assess_skill_evidence(
+            skill,
+            state.get("resume_text", ""),
+            state.get("coursework", []),
+        )
         demand = market_skill.get("Demand Signal", "Medium")
 
-        if evidenced:
+        if evidence["status"] == "Strong Evidence":
             row = {
                 "Skill": skill,
-                "Current Evidence": f"Found evidence of {skill} in the resume or coursework.",
+                "Current Evidence": f"Strong evidence found: {evidence['evidence_excerpt']}",
                 "Severity": "Low",
-                "Recommendation": f"Keep {skill} visible and add a measurable result or project outcome.",
-                "First Step": f"Add one bullet that shows how {skill} supported a business or project decision.",
+                "Recommendation": f"Keep {skill} visible and quantify the outcome where possible.",
+                "First Step": f"Make the strongest {skill} bullet easy to scan near the top of the resume.",
                 "Resume Proof": f"Name {skill}, the project context, and the outcome it supported.",
             }
             covered_rows.append(row)
+            continue
+
+        if evidence["status"] == "Mentioned":
+            severity = "Medium" if demand in {"Very high", "High"} else "Low"
+            row = {
+                "Skill": skill,
+                "Current Evidence": f"Mentioned, but proof is light: {evidence['evidence_excerpt']}",
+                "Severity": severity,
+                "Recommendation": f"Turn the {skill} mention into a project, work, or coursework bullet with a result.",
+                "First Step": f"Add one bullet showing how you used {skill} to produce a deliverable or decision.",
+                "Resume Proof": f"Show {skill} in context: action, deliverable, stakeholder, and measurable result if available.",
+            }
+            mentioned_rows.append(row)
             continue
 
         severity = "High" if demand in {"Very high", "High"} else "Medium"
@@ -95,7 +173,7 @@ def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[
         }
         missing_rows.append(row)
 
-    rows = missing_rows + covered_rows
+    rows = missing_rows + mentioned_rows + covered_rows
     if rows:
         return rows
 
@@ -103,7 +181,58 @@ def _dynamic_gap_report(profile: dict[str, Any], state: dict[str, Any]) -> list[
 
 
 def skill_is_evidenced(skill: str, resume_text: str, coursework: list[str]) -> bool:
-    return _skill_is_evidenced(skill, _normalize_text(f"{resume_text} {' '.join(coursework)}"))
+    return assess_skill_evidence(skill, resume_text, coursework)["status"] != "Missing"
+
+
+def assess_skill_evidence(skill: str, resume_text: str, coursework: list[str]) -> dict[str, Any]:
+    """Classify whether a skill is missing, mentioned, or supported by contextual evidence."""
+
+    resume_matches = _find_term_matches(skill, resume_text)
+    coursework_text = " ".join(coursework)
+    coursework_matches = _find_term_matches(skill, coursework_text)
+    matches = [*resume_matches, *coursework_matches]
+
+    if not matches:
+        return {
+            "skill": skill,
+            "status": "Missing",
+            "matched_terms": [],
+            "evidence_source": "None",
+            "evidence_excerpt": "No matching resume or coursework evidence found.",
+            "confidence": 0.0,
+        }
+
+    for match in resume_matches:
+        if _has_strong_context(skill, match["term"], match["excerpt"]):
+            return {
+                "skill": skill,
+                "status": "Strong Evidence",
+                "matched_terms": sorted({item["term"] for item in matches}),
+                "evidence_source": "Resume",
+                "evidence_excerpt": match["excerpt"],
+                "confidence": 0.9,
+            }
+
+    if coursework_matches:
+        match = coursework_matches[0]
+        return {
+            "skill": skill,
+            "status": "Mentioned",
+            "matched_terms": sorted({item["term"] for item in matches}),
+            "evidence_source": "Coursework",
+            "evidence_excerpt": match["excerpt"],
+            "confidence": 0.55,
+        }
+
+    match = resume_matches[0]
+    return {
+        "skill": skill,
+        "status": "Mentioned",
+        "matched_terms": sorted({item["term"] for item in matches}),
+        "evidence_source": "Resume",
+        "evidence_excerpt": match["excerpt"],
+        "confidence": 0.6,
+    }
 
 
 def _student_evidence_text(state: dict[str, Any]) -> str:
@@ -124,11 +253,67 @@ def _skill_is_evidenced(skill: str, evidence_text: str) -> bool:
     return False
 
 
+def _find_term_matches(skill: str, text: str) -> list[dict[str, str]]:
+    matches = []
+    for excerpt in _evidence_segments(text):
+        normalized_excerpt = _normalize_text(excerpt)
+        for term in _skill_terms(skill):
+            if re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized_excerpt):
+                matches.append({"term": term, "excerpt": _compact_excerpt(excerpt)})
+                break
+    return matches
+
+
+def _evidence_segments(text: str) -> list[str]:
+    segments = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        sentence_parts = re.split(r"(?<=[.!?])\s+", stripped)
+        segments.extend(part.strip() for part in sentence_parts if part.strip())
+    if not segments and text.strip():
+        segments = [text.strip()]
+    return segments
+
+
+def _has_strong_context(skill: str, matched_term: str, excerpt: str) -> bool:
+    normalized_excerpt = _normalize_text(excerpt)
+    normalized_skill = _normalize_text(skill)
+    normalized_term = _normalize_text(matched_term)
+    if normalized_term in BROAD_ALIAS_TERMS and normalized_skill != normalized_term:
+        return False
+    if normalized_skill in {"a/b testing", "experimentation"} and not re.search(
+        r"\ba/b\b|\bab test(?:ing)?\b|\bsplit test(?:ing)?\b|\bexperiment(?:ation|s|ed)?\b|\bvariant(?:s)?\b",
+        normalized_excerpt,
+    ):
+        return False
+    if any(term in normalized_excerpt for term in STRONG_EVIDENCE_TERMS):
+        return True
+    if re.search(r"\d+%|\$[\d,.]+|\b\d+\s*(hours?|days?|weeks?|users?|reports?|dashboards?)\b", normalized_excerpt):
+        return True
+    return False
+
+
+def _compact_excerpt(excerpt: str, limit: int = 180) -> str:
+    compact = re.sub(r"\s+", " ", excerpt).strip().lstrip("-*• ").strip()
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3].rsplit(" ", 1)[0].rstrip(",.;:") + "..."
+
+
 def _skill_terms(skill: str) -> list[str]:
     terms = [skill.lower()]
-    terms.extend(SKILL_ALIASES.get(skill, []))
-    if "/" in skill or " or " in skill.lower():
+    for alias_key, aliases in SKILL_ALIASES.items():
+        if alias_key.lower() == skill.lower():
+            terms.extend(aliases)
+            break
+    if "/" in skill and "a/b" not in skill.lower() or " or " in skill.lower():
         terms.extend(re.split(r"\s*/\s*|\s+or\s+", skill.lower()))
+        for part in re.split(r"\s*/\s*|\s+or\s+", skill):
+            for alias_key, aliases in SKILL_ALIASES.items():
+                if alias_key.lower() == part.strip().lower():
+                    terms.extend(aliases)
     return [_normalize_text(term) for term in terms if term.strip()]
 
 
@@ -149,6 +334,44 @@ def roadmap_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def resume_recommendation_fallback(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    profile_label = profile["label"].lower()
+    if "marketing" in profile_label:
+        return [
+            {
+                "before": "Led a team project documenting recommendations to stakeholders.",
+                "after": (
+                    "Developed a product-positioning brief by identifying the target customer, clarifying the value proposition, "
+                    "and defining launch metrics for stakeholder review."
+                ),
+                "keywords_added": ["product positioning", "target customer", "launch metrics"],
+            },
+            {
+                "before": "Worked on a class project and presented recommendations.",
+                "after": (
+                    "Created a campaign plan with audience, channel, messaging, and success metrics to support a product launch."
+                ),
+                "keywords_added": ["campaign plan", "audience", "messaging", "success metrics"],
+            },
+        ]
+
+    if "ux" in profile_label or "design" in profile_label:
+        return [
+            {
+                "before": "Completed a project and presented recommendations.",
+                "after": (
+                    "Synthesized user feedback into design priorities, then prototyped a revised flow and explained the usability tradeoffs."
+                ),
+                "keywords_added": ["user feedback", "design priorities", "prototyped", "usability"],
+            },
+            {
+                "before": "Worked with stakeholders on project requirements.",
+                "after": (
+                    "Translated stakeholder and user needs into a Figma prototype with clear interaction decisions and review-ready annotations."
+                ),
+                "keywords_added": ["stakeholder needs", "Figma prototype", "interaction decisions"],
+            },
+        ]
+
     if "Project Manager" in profile["label"] and "Business Analyst" not in profile["label"]:
         return [
             {
@@ -190,30 +413,248 @@ def resume_recommendation_fallback(profile: dict[str, Any]) -> list[dict[str, An
 
 
 def interview_question_fallback(target_role: str, company: str, scenario: str, profile: dict[str, Any]) -> list[dict[str, Any]]:
-    company = company.strip() or "the target company"
+    company = _clean_company(company)
     scenario = scenario.strip() or profile["default_interview_scenario"]
+    role_family = _interview_role_family(target_role, scenario)
+    scenario_focus = _scenario_focus(scenario)
+    summary = _scenario_summary(scenario, scenario_focus)
+    company_context = _company_context(company)
 
-    return [
+    return _dedupe_questions(
+        _question_bank(role_family, target_role, company, company_context, scenario_focus, summary, profile)
+    )
+
+
+def _clean_company(company: str) -> str:
+    return company.strip() or "the target company"
+
+
+def _clean_scenario_text(scenario: str) -> str:
+    cleaned = re.sub(r"\s+", " ", scenario).strip()
+    cleaned = re.sub(r"\b(Role|Interview Context|Scenario Details)\b\s*:?", "", cleaned, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", cleaned).strip(" -")
+
+
+def _scenario_summary(scenario: str, focus: str) -> str:
+    cleaned = _clean_scenario_text(scenario)
+    if not cleaned:
+        return focus
+
+    sentences = [part.strip(" .") for part in re.split(r"(?<=[.!?])\s+|\n+", cleaned) if part.strip()]
+    useful_terms = [
+        "launch",
+        "conversion",
+        "dashboard",
+        "metrics",
+        "stakeholder",
+        "requirements",
+        "quality",
+        "timeline",
+        "risk",
+        "customer",
+        "onboarding",
+        "campaign",
+        "workflow",
+    ]
+    chosen: list[str] = []
+    for sentence in sentences:
+        sentence_lower = sentence.lower()
+        if any(term in sentence_lower for term in useful_terms):
+            chosen.append(sentence)
+        if len(" ".join(chosen)) >= 120:
+            break
+    if not chosen:
+        chosen = sentences[:1]
+
+    summary = ". ".join(chosen).strip()
+    if not summary:
+        return focus
+    if len(summary) > 150:
+        summary = summary[:147].rsplit(" ", 1)[0].rstrip(",.;:") + "..."
+    return summary
+
+
+def _scenario_focus(scenario: str) -> str:
+    text = scenario.lower()
+    if any(term in text for term in ["launch", "campaign", "conversion", "onboarding", "free trial"]):
+        return "launch planning, customer insight, and conversion metrics"
+    if any(term in text for term in ["data quality", "different numbers", "inconsistent", "duplicate"]):
+        return "data quality, metric trust, and stakeholder alignment"
+    if any(term in text for term in ["dashboard", "revenue", "acquisition", "kpi", "weekly user activity"]):
+        return "dashboard performance and KPI tradeoffs"
+    if any(term in text for term in ["requirements", "success metrics", "acceptance criteria"]):
+        return "ambiguous requirements and measurable success criteria"
+    if any(term in text for term in ["scope", "deadline", "timeline", "behind schedule", "dependency"]):
+        return "delivery tradeoffs, scope control, and risk mitigation"
+    if any(term in text for term in ["conflict", "disagree", "alignment", "competing"]):
+        return "cross-functional disagreement and decision framing"
+    if any(term in text for term in ["automation", "workflow", "process", "handoff"]):
+        return "process improvement and operational handoff"
+    return "the provided case context"
+
+
+def _interview_role_family(target_role: str, scenario: str) -> str:
+    text = f"{target_role} {scenario}".lower()
+    if any(term in text for term in ["product marketing", "marketing", "growth", "campaign", "brand", "conversion", "designer"]):
+        return "product_marketing"
+    if any(term in text for term in ["data analyst", "analytics", "business intelligence", "bi ", "sql", "python", "dashboard"]):
+        return "data"
+    if any(term in text for term in ["project manager", "project coordinator", "scrum", "agile", "delivery", "timeline"]):
+        return "project"
+    if any(term in text for term in ["business analyst", "systems analyst", "requirements", "uat", "stakeholder"]):
+        return "business"
+    return "general"
+
+
+def _company_context(company: str) -> str:
+    company_lower = company.lower()
+    if any(term in company_lower for term in ["juice", "cafe", "coffee", "restaurant", "food", "retail"]):
+        return "store, loyalty, and customer experience signals"
+    if any(term in company_lower for term in ["bank", "credit", "finance", "capital"]):
+        return "risk, trust, and customer financial outcomes"
+    if any(term in company_lower for term in ["health", "clinic", "hospital", "care"]):
+        return "patient experience, compliance, and operational outcomes"
+    if any(term in company_lower for term in ["school", "university", "college", "campus"]):
+        return "student, staff, and program outcomes"
+    if any(term in company_lower for term in ["software", "tech", "saas", "app", "systems"]):
+        return "product usage, onboarding, and retention signals"
+    return "customer, operational, and business outcomes"
+
+
+def _question_bank(
+    role_family: str,
+    target_role: str,
+    company: str,
+    company_context: str,
+    focus: str,
+    summary: str,
+    profile: dict[str, Any],
+) -> list[dict[str, Any]]:
+    role = target_role.strip() or profile.get("label", "the target role")
+    common = [
+        {
+            "type": "Scenario",
+            "question": (
+                f"If {company} asked you to tackle {focus}, what clarifying questions would you ask before proposing a solution?"
+            ),
+            "rubric_focus": "problem framing, stakeholder discovery, assumptions, success criteria",
+        },
         {
             "type": "Behavioral",
             "question": (
-                f"At {company}, how would you describe a time you handled a similar situation: {scenario}"
+                f"Tell me about a time you had to turn unclear stakeholder input into a concrete plan or deliverable."
             ),
             "rubric_focus": "STAR structure, stakeholder framing, measurable result",
         },
         {
-            "type": "Technical",
-            "question": profile["technical_question"],
-            "rubric_focus": profile["technical_rubric"],
-        },
-        {
             "type": "Scenario",
             "question": (
-                f"Imagine {company} gives you this case: {scenario} What steps would you take in your first week?"
+                f"How would you explain your first-week plan for this case: {summary}?"
             ),
-            "rubric_focus": "clarifying questions, prioritization, evidence, risk management",
+            "rubric_focus": "prioritization, risks, evidence, communication plan",
         },
     ]
+
+    if role_family == "product_marketing":
+        role_specific = [
+            {
+                "type": "Technical",
+                "question": (
+                    f"For {company}, which launch or conversion metrics would you track, and how would you know your work changed customer behavior?"
+                ),
+                "rubric_focus": "metric selection, customer insight, experiment design, business impact",
+            },
+            {
+                "type": "Scenario",
+                "question": (
+                    f"Design a practical 30-day plan for improving {company}'s {company_context} while balancing creative quality and measurable growth."
+                ),
+                "rubric_focus": "audience insight, prioritization, channel strategy, measurable outcomes",
+            },
+        ]
+    elif role_family == "data":
+        role_specific = [
+            {
+                "type": "Technical",
+                "question": (
+                    f"What data would you pull to investigate {focus}, and how would you validate the result before sharing it with {company}?"
+                ),
+                "rubric_focus": "data sources, SQL or analysis logic, validation checks, communication",
+            },
+            {
+                "type": "Scenario",
+                "question": (
+                    f"Which three metrics would you use to brief {company} leadership, and what action could each metric support?"
+                ),
+                "rubric_focus": "KPI choice, decision relevance, tradeoffs, executive clarity",
+            },
+        ]
+    elif role_family == "project":
+        role_specific = [
+            {
+                "type": "Technical",
+                "question": (
+                    f"How would you structure the work plan, owners, risks, and checkpoints for {company} if the team had to address {focus}?"
+                ),
+                "rubric_focus": "scope, owners, timeline, risks, stakeholder communication",
+            },
+            {
+                "type": "Scenario",
+                "question": (
+                    f"A senior stakeholder at {company} wants faster delivery while the team flags quality concerns. How do you handle the tradeoff?"
+                ),
+                "rubric_focus": "scope negotiation, escalation, risk mitigation, decision record",
+            },
+        ]
+    elif role_family == "business":
+        role_specific = [
+            {
+                "type": "Technical",
+                "question": (
+                    f"How would you translate {company}'s case into requirements, acceptance criteria, and metrics the team can build against?"
+                ),
+                "rubric_focus": "requirements clarity, acceptance criteria, data feasibility, traceability",
+            },
+            {
+                "type": "Scenario",
+                "question": (
+                    f"Two teams at {company} disagree on what success means for {focus}. How would you lead the working session?"
+                ),
+                "rubric_focus": "facilitation, prioritization, stakeholder alignment, decision criteria",
+            },
+        ]
+    else:
+        role_specific = [
+            {
+                "type": "Technical",
+                "question": (
+                    f"As a {role}, what evidence would you gather to make a recommendation for {company}, and how would you measure success?"
+                ),
+                "rubric_focus": "evidence gathering, metric choice, business reasoning, recommendation quality",
+            },
+            {
+                "type": "Scenario",
+                "question": (
+                    f"Walk through how you would adapt your approach for {company}'s {company_context} in this situation."
+                ),
+                "rubric_focus": "context awareness, tradeoffs, stakeholder communication, next steps",
+            },
+        ]
+
+    return [common[0], *role_specific, common[1], common[2]]
+
+
+def _dedupe_questions(questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen = set()
+    unique = []
+    for question in questions:
+        text = re.sub(r"\s+", " ", question["question"]).strip()
+        if text.lower() in seen:
+            continue
+        seen.add(text.lower())
+        question = {**question, "question": text}
+        unique.append(question)
+    return unique[:5]
 
 
 def sample_interview_answer(question: str, rubric_focus: str) -> str:
