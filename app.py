@@ -56,13 +56,16 @@ ACCENT_CSS = """
 }
 
 [data-testid="stSidebar"] {
-    background:
-        linear-gradient(180deg, var(--cc-navy-950) 0%, var(--cc-navy-900) 58%, #0b3f4a 100%);
-    border-right: 1px solid rgba(148, 163, 184, 0.18);
+    display: none;
 }
 
-[data-testid="stSidebar"] * {
-    color: #f8fafc;
+[data-testid="collapsedControl"] {
+    display: none;
+}
+
+section.main > div {
+    padding-left: 3rem;
+    padding-right: 3rem;
 }
 
 h1 {
@@ -434,6 +437,26 @@ p, .stCaptionContainer {
     color: #0f766e;
 }
 
+.cc-product-header {
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    margin: 0 0 24px 0;
+    padding: 8px 0 18px 0;
+}
+
+.cc-product-header strong {
+    color: #0f172a;
+    display: block;
+    font-size: 1.12rem;
+    letter-spacing: 0;
+}
+
+.cc-product-header span {
+    color: var(--cc-muted);
+    display: block;
+    font-size: 0.9rem;
+    margin-top: 4px;
+}
+
 @media (max-width: 1100px) {
     .cc-status-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -636,7 +659,7 @@ st.set_page_config(
     page_title="CareerCompass",
     page_icon="🧭",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -2120,6 +2143,18 @@ def render_action_checklist(analysis: dict) -> None:
         st.checkbox(item, value=False, key=f"portfolio-{item}")
 
 
+def render_customer_header() -> None:
+    st.markdown(
+        """
+        <div class="cc-product-header">
+            <strong>CareerCompass</strong>
+            <span>Build a job-specific resume strategy from your resume, target role, and pasted job posting.</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_console_hero() -> None:
     analysis = st.session_state.get("analysis") or {}
     market_skills = analysis.get("market_skills", []) if analysis else []
@@ -2181,10 +2216,9 @@ def render_console_hero() -> None:
 def main() -> None:
     apply_visual_style()
     initialize_state()
-    render_sidebar()
     apply_demo_query_params()
 
-    render_console_hero()
+    render_customer_header()
 
     inputs = render_inputs()
 
