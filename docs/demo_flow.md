@@ -7,20 +7,20 @@ Use this sequence for screenshots and the final video. Keep the demo tight: 5 to
 Run the Streamlit app:
 
 ```powershell
-C:\Users\knolo\anaconda3\python.exe -m streamlit run app.py --server.port 8502
+C:\Users\knolo\anaconda3\python.exe -m streamlit run app.py --server.port 8503
 ```
 
 Open:
 
 ```text
-http://localhost:8502
+http://localhost:8503
 ```
 
 Keep Presenter mode enabled for recording. Turn it off only if you want cleaner screenshots without cues.
 
 Click **Reset sample demo profile** before recording or presenting so the walkthrough starts from a predictable state.
 
-For repeatable screenshot capture, append `?demo_autorun=1&demo_view=dashboard` to auto-run the sample profile. Supported `demo_view` values are `dashboard`, `roadmap`, `resume`, `interview`, `report`, and `checklist`.
+For repeatable screenshot capture, append `?demo_autorun=1&demo_view=dashboard` to auto-run the sample profile. Supported `demo_view` values are `dashboard`, `roadmap`, `resume`, `interview`, `report`, `checklist`, and `rubric`.
 
 ## Demo Path
 
@@ -64,6 +64,9 @@ For repeatable screenshot capture, append `?demo_autorun=1&demo_view=dashboard` 
    - Show certification suggestions, resume evidence reminders, and portfolio proof ideas.
    - Close by explaining that this helps students leave with next actions, not just advice.
 
+9. **Rubric Evidence**
+   - Show how the app maps to Track B requirements: architecture, business value, deployment, ethics, documentation, RAG, and evaluation.
+
 ## Screenshots To Capture
 
 Save screenshots in `docs/screenshots/`.
@@ -76,6 +79,7 @@ Save screenshots in `docs/screenshots/`.
 - `06-interview.png`: Interview simulation and answer evaluation.
 - `07-final-report.png`: Final strategy report.
 - `08-agent-trace.png`: Technical demo notes with handoffs and confidence scores.
+- `09-rubric-evidence.png`: Rubric Evidence view with requirement coverage and Responsible AI controls.
 
 ## Video Timing
 
@@ -85,5 +89,5 @@ Save screenshots in `docs/screenshots/`.
 - 2:45 to 3:45: Roadmap and resume optimization.
 - 3:45 to 4:45: Interview simulation.
 - 4:45 to 5:30: Final report, ethics, and evaluation evidence.
-- 5:30 to 6:00: Team implementation status and next steps.
+- 5:30 to 6:00: Rubric evidence and closing impact statement.
 

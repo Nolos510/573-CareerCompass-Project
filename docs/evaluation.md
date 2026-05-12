@@ -1,17 +1,17 @@
 # CareerCompass Evaluation Plan
 
-This plan supports the final project report and video demo.
+This plan supports the final project report and video demo. The latest local smoke results are recorded in [evaluation_results.md](evaluation_results.md).
 
 ## Metrics
 
 | Metric | Target | Current MVP Evidence | Next Validation Step |
 | --- | --- | --- | --- |
-| End-to-end latency | Under 30 seconds | Streamlit run records local latency after each analysis. | Record 5 demo runs and report average/p95. |
-| Skill gap accuracy | 80 percent manual agreement | Gap Analysis Agent compares resume/coursework evidence against retrieved market skills. | Have teammates manually review 10 sample profiles and label agreement. |
-| Resume keyword coverage | Increased keyword coverage after optimization | Resume view lists target keywords and suggested bullet rewrites. | Compare before/after keyword count against target postings. |
-| Learning resource relevance | 4 out of 5 user rating | Roadmap includes resource relevance scores. | Ask test users to rate roadmap resources. |
-| Interview question relevance | 4 out of 5 average relevance | Interview simulator generates role/company/scenario-specific questions. | Rate questions against target job descriptions. |
-| Retrieved evidence quality | At least 3 relevant postings for common demo roles | Local retriever returns scored postings and evidence summaries. | Replace local dataset with ChromaDB top-k retrieval and inspect source snippets. |
+| End-to-end latency | Under 30 seconds | Five local runs averaged 0.4502 seconds, max 2.1936 seconds. | Re-run before recording and report the latest value. |
+| Skill gap accuracy | 80 percent manual agreement | Three-profile smoke review found high/medium gaps aligned with retrieved skills and profile evidence. | Have teammates independently review and sign off if time allows. |
+| Resume keyword coverage | Increased keyword coverage after optimization | Resume view lists target keywords and suggested bullet rewrites; smoke profiles report coverage. | Capture before/after screenshots in the resume view. |
+| Learning resource relevance | 4 out of 5 user rating | Three smoke profiles averaged 4.3/5 roadmap relevance. | Ask test users or teammates to rate final roadmap resources. |
+| Interview question relevance | 4 out of 5 average relevance | Each smoke profile generated 3 role-specific questions. | Rate questions against target job descriptions before final report. |
+| Retrieved evidence quality | At least 3 relevant postings for common demo roles | Each smoke profile returned 5 retrieved postings with evidence summaries. | Replace local dataset with ChromaDB top-k retrieval if the RAG lane is merged. |
 
 ## Test Profiles
 

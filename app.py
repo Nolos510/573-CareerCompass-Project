@@ -590,6 +590,7 @@ DEMO_CUES = {
     "Interview": "Use Salesforce or another Bay Area company, generate scenario questions, answer one, then show scoring and sample answer.",
     "Final Report": "Call out that the supervisor synthesizes every specialist output into one student-facing strategy report.",
     "Action Checklist": "Close with practical next steps: certifications, missing evidence, and portfolio proof.",
+    "Rubric Evidence": "Use this as the grading bridge: each project requirement maps to a feature, document, or verification artifact.",
 }
 
 DEMO_VIEW_PARAMS = {
@@ -599,7 +600,82 @@ DEMO_VIEW_PARAMS = {
     "interview": "Interview",
     "report": "Final Report",
     "checklist": "Action Checklist",
+    "rubric": "Rubric Evidence",
 }
+
+RUBRIC_EVIDENCE = [
+    {
+        "Rubric area": "Agent Architecture & Implementation",
+        "Weight": "35%",
+        "Status": "Ready",
+        "Evidence": "LangGraph supervisor workflow, five specialist agents, synthesis node, typed shared state, structured handoffs, model fallbacks, and root workflow tests.",
+    },
+    {
+        "Rubric area": "Business Value & Relevance",
+        "Weight": "20%",
+        "Status": "Ready",
+        "Evidence": "Student and career-center use case with resume intake, target role/location/timeline, skill gaps, roadmap, resume draft, interview practice, and strategy report.",
+    },
+    {
+        "Rubric area": "Container & Deployment Strategy",
+        "Weight": "15%",
+        "Status": "Ready for smoke test",
+        "Evidence": "Dockerfile, .dockerignore, deployment guide, deterministic fallback mode, and optional OpenAI environment variables.",
+    },
+    {
+        "Rubric area": "Ethical Consideration",
+        "Weight": "15%",
+        "Status": "Ready",
+        "Evidence": "Visible Responsible AI audit, advisor-review warning, confidence scores, no intentional resume persistence, evidence grounding, and ethics documentation.",
+    },
+    {
+        "Rubric area": "Documentation & Presentation",
+        "Weight": "15%",
+        "Status": "Ready for final media",
+        "Evidence": "README, architecture handoff, demo script, screenshot checklist, evaluation docs, deployment docs, and this rubric evidence table.",
+    },
+]
+
+RESPONSIBLE_AI_CHECKS = [
+    {
+        "Control": "Resume privacy",
+        "Current implementation": "Resume text is used in the Streamlit session and is not intentionally persisted by the MVP.",
+        "Demo note": "Production should add explicit retention and deletion controls before storing resumes.",
+    },
+    {
+        "Control": "Grounded recommendations",
+        "Current implementation": "Market skills and gaps are tied to retrieved job-posting evidence and student-provided resume/coursework signals.",
+        "Demo note": "Current local corpus is directional, not a full labor-market sample.",
+    },
+    {
+        "Control": "Human oversight",
+        "Current implementation": "The final report frames output as decision support and recommends career-advisor review.",
+        "Demo note": "Avoid promising guaranteed job matches or definitive hiring outcomes.",
+    },
+    {
+        "Control": "Resume authenticity",
+        "Current implementation": "Resume suggestions preserve evidence and warn against exaggerated claims.",
+        "Demo note": "Students should edit generated bullets before submitting applications.",
+    },
+]
+
+RAG_READINESS_ROWS = [
+    {
+        "Layer": "Current RAG",
+        "Status": "Implemented",
+        "Evidence": "Deterministic lexical retrieval over local job postings returns scored sources and evidence summaries.",
+    },
+    {
+        "Layer": "Vector-search upgrade",
+        "Status": "Documented next step",
+        "Evidence": "ChromaDB/Kaggle LinkedIn path is documented as the next RAG lane while preserving the current posting shape.",
+    },
+    {
+        "Layer": "Bias limitation",
+        "Status": "Disclosed",
+        "Evidence": "The app and docs describe the local corpus as directional and recommend advisor review.",
+    },
+]
 
 INTERVIEW_PROGRESS_LABELS = {
     "not_started": "Not started",
@@ -902,21 +978,13 @@ def render_sidebar() -> None:
 
 
 def render_role_status_panel() -> None:
-    cards = []
-    for item in ROLE_STATUS:
-        cards.append(
-            f"""
-            <div class="cc-status">
-                <strong>{item['owner']} - {item['lane']}</strong>
-                <span>{item['status']}</span>
-                <p>{item['summary']}</p>
-            </div>
-            """
-        )
-    st.markdown(
-        f"""<div class="cc-status-grid">{''.join(cards)}</div>""",
-        unsafe_allow_html=True,
-    )
+    columns = st.columns(len(ROLE_STATUS))
+    for column, item in zip(columns, ROLE_STATUS):
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{item['owner']} - {item['lane']}**")
+                st.caption(item["status"].upper())
+                st.write(item["summary"])
 
 
 def render_presenter_cue(view_name: str) -> None:
@@ -1398,10 +1466,16 @@ def render_dashboard(analysis: dict) -> None:
             st.metric("End-to-end latency", f"{st.session_state.latency_seconds:.1f}s")
             st.subheader("Supervisor agent trace")
             st.write(" -> ".join(analysis.get("agent_trace", [])))
+            st.subheader("Agent coordination evidence")
+            st.dataframe(
+                pd.DataFrame(build_agent_coordination_rows(analysis)),
+                use_container_width=True,
+                hide_index=True,
+            )
 
             handoffs = analysis.get("agent_handoffs", [])
             if handoffs:
-                st.subheader("Inter-agent handoffs")
+                st.subheader("Raw inter-agent handoffs")
                 st.dataframe(pd.DataFrame(handoffs), use_container_width=True, hide_index=True)
 
             confidence_scores = analysis.get("confidence_scores", {})
@@ -1419,6 +1493,8 @@ def render_dashboard(analysis: dict) -> None:
                 use_container_width=True,
                 hide_index=True,
             )
+
+    render_responsible_ai_audit(analysis)
 
 
 def render_roadmap(analysis: dict) -> None:
@@ -1885,6 +1961,11 @@ def render_report(analysis: dict) -> None:
         "CareerCompass recommendations are decision support, not a guarantee. Students should review outputs with a career advisor."
     )
 
+    render_responsible_ai_audit(analysis)
+
+    st.subheader("Rubric evidence snapshot")
+    st.dataframe(pd.DataFrame(RUBRIC_EVIDENCE), use_container_width=True, hide_index=True)
+
 
 def render_action_checklist(analysis: dict) -> None:
     st.header("Action Checklist")
@@ -1904,6 +1985,88 @@ def render_action_checklist(analysis: dict) -> None:
     st.subheader("Portfolio proof ideas")
     for item in analysis["portfolio_ideas"]:
         st.checkbox(item, value=False, key=f"portfolio-{item}")
+
+
+def render_rubric_evidence(analysis: dict) -> None:
+    st.header("Rubric Evidence")
+    st.caption("A compact proof map for the ISYS 573 Track B final submission.")
+
+    st.subheader("Project requirement coverage")
+    st.dataframe(pd.DataFrame(RUBRIC_EVIDENCE), use_container_width=True, hide_index=True)
+
+    st.subheader("Agentic workflow proof")
+    st.dataframe(
+        pd.DataFrame(build_agent_coordination_rows(analysis)),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader("RAG readiness")
+    st.dataframe(pd.DataFrame(RAG_READINESS_ROWS), use_container_width=True, hide_index=True)
+
+    st.subheader("Responsible AI controls")
+    st.dataframe(pd.DataFrame(RESPONSIBLE_AI_CHECKS), use_container_width=True, hide_index=True)
+
+    st.subheader("Submission checklist")
+    checklist_items = [
+        "Root tests pass with plain pytest discovery.",
+        "Docker build and run commands are documented and ready for smoke testing.",
+        "Screenshots are listed in docs/demo_flow.md for the final media package.",
+        "Measured evaluation results are recorded in docs/evaluation_results.md.",
+        "Final report and video can point to this table as rubric evidence.",
+    ]
+    for item in checklist_items:
+        st.checkbox(item, value=True, key=f"rubric-check-{item}")
+
+
+def render_responsible_ai_audit(analysis: dict) -> None:
+    st.subheader("Responsible AI / advisor review audit")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Resume retention", "Session only")
+    c2.metric("Retrieved evidence", len(analysis.get("retrieved_job_postings", [])))
+    c3.metric("Advisor review", "Required")
+    c4.metric("Market confidence", _format_confidence(analysis, "market_data"))
+
+    st.dataframe(pd.DataFrame(RESPONSIBLE_AI_CHECKS), use_container_width=True, hide_index=True)
+
+
+def build_agent_coordination_rows(analysis: dict) -> list[dict]:
+    handoffs = analysis.get("agent_handoffs", [])
+    if handoffs:
+        rows = []
+        for index, handoff in enumerate(handoffs, start=1):
+            rows.append(
+                {
+                    "Step": index,
+                    "Coordination": f"{handoff['from_agent']} -> {handoff['to_agent']}",
+                    "Reason": handoff["reason"],
+                    "Inputs": ", ".join(handoff["required_inputs"]),
+                    "Outputs": ", ".join(handoff["expected_outputs"]),
+                    "Status": handoff["status"],
+                }
+            )
+        return rows
+
+    trace = analysis.get("agent_trace", [])
+    return [
+        {
+            "Step": index,
+            "Coordination": agent_name,
+            "Reason": "Completed workflow step.",
+            "Inputs": "Shared AgentState",
+            "Outputs": "Updated AgentState",
+            "Status": "completed",
+        }
+        for index, agent_name in enumerate(trace, start=1)
+    ]
+
+
+def _format_confidence(analysis: dict, key: str) -> str:
+    value = analysis.get("confidence_scores", {}).get(key)
+    if value is None:
+        return "n/a"
+    return f"{round(value * 100)}%"
 
 
 def render_console_hero() -> None:
@@ -1997,6 +2160,8 @@ def main() -> None:
             "Resume",
             "Interview",
             "Final Report",
+            "Action Checklist",
+            "Rubric Evidence",
         ]
         active_view = st.radio(
             "CareerCompass navigation",
@@ -2014,6 +2179,10 @@ def main() -> None:
             render_interview(st.session_state.analysis)
         elif active_view == "Final Report":
             render_report(st.session_state.analysis)
+        elif active_view == "Action Checklist":
+            render_action_checklist(st.session_state.analysis)
+        elif active_view == "Rubric Evidence":
+            render_rubric_evidence(st.session_state.analysis)
 
 
 JOB_KEYWORD_ALIASES = {

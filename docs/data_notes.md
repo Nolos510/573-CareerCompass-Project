@@ -58,6 +58,19 @@ The output should keep the current shape:
 ]
 ```
 
+## Rubric-Ready RAG Story
+
+For the final submission, describe the current RAG layer as a reliable local
+retrieval baseline and the ChromaDB/Kaggle job-posting lane as the production
+upgrade path.
+
+- Current demo: lexical retrieval over local job postings with retrieval scores,
+  metadata, and evidence summaries.
+- Upgrade path: ingest a larger LinkedIn/Kaggle-style dataset, embed postings,
+  store them in ChromaDB, and preserve the same returned posting contract.
+- Reason for the staged design: the demo remains deterministic and API-key-free
+  while still showing how retrieved labor-market evidence grounds the agents.
+
 ## Bias And Limitations
 
 The current local sample is not representative of the full labor market. It is useful for demo reliability, but the final report should acknowledge that:

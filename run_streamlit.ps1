@@ -9,8 +9,9 @@ if (-not (Test-Path -LiteralPath $python)) {
   $python = ".\.venv\Scripts\python.exe"
 }
 
+$ErrorActionPreference = "Continue"
 & $python -m streamlit run app.py `
   --server.headless true `
-  --server.port 8502 `
+  --server.port 8503 `
   --browser.gatherUsageStats false `
   *> "streamlit.out.log"
