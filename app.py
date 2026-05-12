@@ -63,9 +63,25 @@ ACCENT_CSS = """
     display: none;
 }
 
+[data-testid="stToolbar"],
+[data-testid="stDeployButton"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+header[data-testid="stHeader"],
+#MainMenu,
+footer {
+    display: none;
+    visibility: hidden;
+}
+
 section.main > div {
     padding-left: 3rem;
     padding-right: 3rem;
+}
+
+[data-testid="stAppViewContainer"] > .main .block-container {
+    max-width: 1480px;
+    padding-top: 2.2rem;
 }
 
 h1 {
@@ -438,23 +454,175 @@ p, .stCaptionContainer {
 }
 
 .cc-product-header {
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-    margin: 0 0 24px 0;
-    padding: 8px 0 18px 0;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(20, 184, 166, 0.24);
+    border-radius: 24px;
+    margin: 0 0 28px 0;
+    padding: 32px;
+    background:
+        radial-gradient(circle at 84% 18%, rgba(20, 184, 166, 0.32), transparent 24%),
+        radial-gradient(circle at 62% 84%, rgba(37, 99, 235, 0.2), transparent 25%),
+        linear-gradient(135deg, #07111f 0%, #0d2136 54%, #0f4c54 100%);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
 }
 
-.cc-product-header strong {
-    color: #0f172a;
-    display: block;
-    font-size: 1.12rem;
-    letter-spacing: 0;
+.cc-product-header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(90deg, rgba(0,0,0,0.75), rgba(0,0,0,0.25));
+    pointer-events: none;
 }
 
-.cc-product-header span {
-    color: var(--cc-muted);
+.cc-product-header::after {
+    content: "";
+    position: absolute;
+    right: 78px;
+    top: 48px;
+    width: 420px;
+    height: 160px;
+    border-top: 2px dashed rgba(125, 211, 252, 0.36);
+    border-right: 2px dashed rgba(20, 184, 166, 0.28);
+    border-radius: 0 70px 0 0;
+    transform: skewX(-18deg);
+    pointer-events: none;
+}
+
+.cc-product-shell {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 170px;
+    gap: 32px;
+    align-items: center;
+}
+
+.cc-product-copy h1 {
+    color: #f8fafc;
+    font-size: clamp(2.45rem, 5vw, 5rem);
+    line-height: 0.92;
+    margin: 0 0 16px 0;
+}
+
+.cc-product-copy p {
+    color: #cbd5e1;
+    font-size: 1.08rem;
+    line-height: 1.65;
+    margin: 0;
+    max-width: 820px;
+}
+
+.cc-product-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.cc-product-actions span {
+    align-items: center;
+    background: rgba(15, 23, 42, 0.46);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    color: #e2e8f0;
+    display: inline-flex;
+    font-size: 0.82rem;
+    font-weight: 700;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+.cc-product-actions span::before {
+    background: #5eead4;
+    border-radius: 999px;
+    box-shadow: 0 0 0 5px rgba(94, 234, 212, 0.1);
+    content: "";
+    height: 7px;
+    width: 7px;
+}
+
+.cc-hero-compass {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    border-radius: 999px;
+    border: 1px solid rgba(153, 246, 228, 0.44);
+    background:
+        radial-gradient(circle, rgba(15, 23, 42, 0.16) 0 31%, transparent 32%),
+        rgba(255, 255, 255, 0.08);
+    box-shadow:
+        inset 0 0 0 18px rgba(20, 184, 166, 0.09),
+        inset 0 0 0 54px rgba(255, 255, 255, 0.035),
+        0 24px 50px rgba(0, 0, 0, 0.28);
+}
+
+.cc-hero-compass::before {
+    content: "";
+    position: absolute;
+    inset: 26px;
+    border: 1px solid rgba(226, 232, 240, 0.38);
+    border-radius: 999px;
+    background:
+        linear-gradient(90deg, transparent 49%, rgba(226, 232, 240, 0.58) 49% 51%, transparent 51%),
+        linear-gradient(0deg, transparent 49%, rgba(226, 232, 240, 0.58) 49% 51%, transparent 51%);
+}
+
+.cc-hero-compass::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 24px;
+    height: 88px;
+    background: linear-gradient(180deg, #f59e0b 0 46%, #f8fafc 48% 100%);
+    clip-path: polygon(50% 0, 100% 45%, 60% 50%, 50% 100%, 40% 50%, 0 45%);
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.28));
+    transform: translate(-50%, -50%) rotate(38deg);
+}
+
+.cc-workflow-strip {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 28px;
+}
+
+.cc-workflow-step {
+    border: 1px solid rgba(226, 232, 240, 0.18);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 16px;
+    backdrop-filter: blur(10px);
+}
+
+.cc-workflow-step span {
+    color: #99f6e4;
     display: block;
-    font-size: 0.9rem;
-    margin-top: 4px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.cc-workflow-step strong {
+    color: #f8fafc;
+    display: block;
+    font-size: 1rem;
+    margin-bottom: 6px;
+}
+
+.cc-workflow-step p {
+    color: #cbd5e1;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    margin: 0;
 }
 
 @media (max-width: 1100px) {
@@ -555,6 +723,23 @@ div[data-testid="stExpander"] {
 }
 
 @media (max-width: 760px) {
+    section.main > div {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .cc-product-header {
+        border-radius: 18px;
+        padding: 24px;
+    }
+    .cc-product-shell {
+        grid-template-columns: 1fr;
+    }
+    .cc-hero-compass {
+        display: none;
+    }
+    .cc-workflow-strip {
+        grid-template-columns: 1fr;
+    }
     .cc-hero-grid {
         grid-template-columns: 1fr;
     }
@@ -2147,8 +2332,35 @@ def render_customer_header() -> None:
     st.markdown(
         """
         <div class="cc-product-header">
-            <strong>CareerCompass</strong>
-            <span>Build a job-specific resume strategy from your resume, target role, and pasted job posting.</span>
+            <div class="cc-product-shell">
+                <div class="cc-product-copy">
+                    <h1>CareerCompass</h1>
+                    <p>Turn one resume and one job post into a targeted, evidence-safe application plan. See what already matches, what needs proof, and what to rewrite before you apply.</p>
+                    <div class="cc-product-actions">
+                        <span>Session-only resume review</span>
+                        <span>Job-post match scoring</span>
+                        <span>Safe tailored resume drafts</span>
+                    </div>
+                </div>
+                <div class="cc-hero-compass" aria-hidden="true"></div>
+            </div>
+            <div class="cc-workflow-strip">
+                <div class="cc-workflow-step">
+                    <span>Step 01</span>
+                    <strong>Load your resume</strong>
+                    <p>Paste or upload the version you want to improve.</p>
+                </div>
+                <div class="cc-workflow-step">
+                    <span>Step 02</span>
+                    <strong>Add the target job</strong>
+                    <p>Use the actual posting so the match is job-specific.</p>
+                </div>
+                <div class="cc-workflow-step">
+                    <span>Step 03</span>
+                    <strong>Review safe edits</strong>
+                    <p>Export only after unsupported claims are separated.</p>
+                </div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
